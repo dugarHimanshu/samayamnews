@@ -1,0 +1,541 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'district_selection_screen.dart';
+
+class RegionSelectionScreen extends StatefulWidget {
+  final String selectedLanguage;
+
+  const RegionSelectionScreen({super.key, required this.selectedLanguage});
+
+  @override
+  State<RegionSelectionScreen> createState() => _RegionSelectionScreenState();
+}
+
+class _RegionSelectionScreenState extends State<RegionSelectionScreen> {
+  String? _selectedState;
+
+  final TextEditingController _searchController = TextEditingController();
+
+  final List<IndianState> _states = const [
+    IndianState(id: 'andhra_pradesh', name: 'Andhra Pradesh', shortName: 'AP'),
+    IndianState(
+      id: 'arunachal_pradesh',
+      name: 'Arunachal Pradesh',
+      shortName: 'AR',
+    ),
+    IndianState(id: 'assam', name: 'Assam', shortName: 'AS'),
+    IndianState(id: 'bihar', name: 'Bihar', shortName: 'BR'),
+    IndianState(id: 'chhattisgarh', name: 'Chhattisgarh', shortName: 'CG'),
+    IndianState(id: 'goa', name: 'Goa', shortName: 'GA'),
+    IndianState(id: 'gujarat', name: 'Gujarat', shortName: 'GJ'),
+    IndianState(id: 'haryana', name: 'Haryana', shortName: 'HR'),
+    IndianState(
+      id: 'himachal_pradesh',
+      name: 'Himachal Pradesh',
+      shortName: 'HP',
+    ),
+    IndianState(id: 'jharkhand', name: 'Jharkhand', shortName: 'JH'),
+    IndianState(id: 'karnataka', name: 'Karnataka', shortName: 'KA'),
+    IndianState(id: 'kerala', name: 'Kerala', shortName: 'KL'),
+    IndianState(id: 'madhya_pradesh', name: 'Madhya Pradesh', shortName: 'MP'),
+    IndianState(id: 'maharashtra', name: 'Maharashtra', shortName: 'MH'),
+    IndianState(id: 'manipur', name: 'Manipur', shortName: 'MN'),
+    IndianState(id: 'meghalaya', name: 'Meghalaya', shortName: 'ML'),
+    IndianState(id: 'mizoram', name: 'Mizoram', shortName: 'MZ'),
+    IndianState(id: 'nagaland', name: 'Nagaland', shortName: 'NL'),
+    IndianState(id: 'odisha', name: 'Odisha', shortName: 'OD'),
+    IndianState(id: 'punjab', name: 'Punjab', shortName: 'PB'),
+    IndianState(id: 'rajasthan', name: 'Rajasthan', shortName: 'RJ'),
+    IndianState(id: 'sikkim', name: 'Sikkim', shortName: 'SK'),
+    IndianState(id: 'tamil_nadu', name: 'Tamil Nadu', shortName: 'TN'),
+    IndianState(id: 'telangana', name: 'Telangana', shortName: 'TS'),
+    IndianState(id: 'tripura', name: 'Tripura', shortName: 'TR'),
+    IndianState(id: 'uttar_pradesh', name: 'Uttar Pradesh', shortName: 'UP'),
+    IndianState(id: 'uttarakhand', name: 'Uttarakhand', shortName: 'UK'),
+    IndianState(id: 'west_bengal', name: 'West Bengal', shortName: 'WB'),
+  ];
+
+  List<IndianState> get _filteredStates {
+    final query = _searchController.text.trim().toLowerCase();
+
+    if (query.isEmpty) {
+      return _states;
+    }
+
+    return _states.where((state) {
+      return state.name.toLowerCase().contains(query) ||
+          state.shortName.toLowerCase().contains(query);
+    }).toList();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  void _onSearchChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _selectState(String stateId) {
+    setState(() {
+      _selectedState = stateId;
+    });
+  }
+
+  void _continue() {
+    if (_selectedState == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Please select your state first.',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+          ),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    final selectedState = _states.firstWhere(
+      (state) => state.id == _selectedState,
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DistrictSelectionScreen(
+          selectedLanguage: widget.selectedLanguage,
+          selectedState: selectedState.name,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F7F4),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(24, 18, 24, 30),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // PROGRESS
+                    Row(
+                      children: [
+                        Expanded(child: _ProgressBar(active: true)),
+                        const SizedBox(width: 6),
+                        Expanded(child: _ProgressBar(active: true)),
+                        const SizedBox(width: 6),
+                        Expanded(child: _ProgressBar(active: false)),
+                      ],
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // HEADER
+                    Text(
+                      'Where are you',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 38,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF111111),
+                        height: 1.05,
+                      ),
+                    ),
+
+                    Text(
+                      'reading from?',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 38,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF111111),
+                        height: 1.05,
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    Text(
+                      'Choose your state so we can bring the most relevant local stories to your feed.',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        height: 1.5,
+                        color: Colors.black54,
+                      ),
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // COUNTRY
+                    Text(
+                      'COUNTRY',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.3,
+                        color: Colors.black45,
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 17,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: Colors.black.withValues(alpha:0.06),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFF5F5F2),
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: const Text(
+                              '🇮🇳',
+                              style: TextStyle(fontSize: 21),
+                            ),
+                          ),
+                          const SizedBox(width: 13),
+                          Expanded(
+                            child: Text(
+                              'India',
+                              style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            size: 21,
+                            color: Colors.black,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // STATE SEARCH
+                    Text(
+                      'SELECT STATE',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.3,
+                        color: Colors.black45,
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    TextField(
+                      controller: _searchController,
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        hintText: 'Search your state...',
+                        hintStyle: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: Colors.black38,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.search_rounded,
+                          size: 21,
+                          color: Colors.black45,
+                        ),
+                        suffixIcon: _searchController.text.isNotEmpty
+                            ? IconButton(
+                                onPressed: () {
+                                  _searchController.clear();
+                                },
+                                icon: const Icon(Icons.close_rounded, size: 19),
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 17,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide(
+                            color: Colors.black.withValues(alpha:0.06),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: const BorderSide(
+                            color: Colors.black,
+                            width: 1.2,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // STATE LIST
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _filteredStates.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 9),
+                      itemBuilder: (context, index) {
+                        final state = _filteredStates[index];
+
+                        return _StateCard(
+                          state: state,
+                          isSelected: state.id == _selectedState,
+                          onTap: () {
+                            _selectState(state.id);
+                          },
+                        );
+                      },
+                    ),
+
+                    if (_filteredStates.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 30),
+                        child: Center(
+                          child: Column(
+                            children: [
+                              const Icon(
+                                Icons.location_off_rounded,
+                                size: 42,
+                                color: Colors.black26,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'No state found',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Try searching with another name.',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: Colors.black45,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            // CONTINUE
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F7F4),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha:0.05),
+                    blurRadius: 20,
+                    offset: const Offset(0, -8),
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                height: 58,
+                child: ElevatedButton(
+                  onPressed: _continue,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF111111),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Continue',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Icon(Icons.arrow_forward_rounded, size: 19),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// STATE CARD
+// ============================================================
+
+class _StateCard extends StatelessWidget {
+  final IndianState state;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _StateCard({
+    required this.state,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF111111) : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isSelected
+                  ? const Color(0xFF111111)
+                  : Colors.black.withValues(alpha:0.06),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 43,
+                height: 43,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Colors.white.withValues(alpha:0.12)
+                      : const Color(0xFFF5F5F2),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  state.shortName,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: isSelected ? Colors.white : Colors.black54,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  state.name,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: isSelected ? Colors.white : const Color(0xFF111111),
+                  ),
+                ),
+              ),
+              if (isSelected)
+                const Icon(
+                  Icons.check_circle_rounded,
+                  size: 22,
+                  color: Colors.white,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// PROGRESS
+// ============================================================
+
+class _ProgressBar extends StatelessWidget {
+  final bool active;
+
+  const _ProgressBar({required this.active});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 4,
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFF111111) : Colors.black12,
+        borderRadius: BorderRadius.circular(20),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// MODEL
+// ============================================================
+
+class IndianState {
+  final String id;
+  final String name;
+  final String shortName;
+
+  const IndianState({
+    required this.id,
+    required this.name,
+    required this.shortName,
+  });
+}
+
+original

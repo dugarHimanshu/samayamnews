@@ -1,0 +1,334 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../data/location_data.dart';
+
+import '../../main/main_shell.dart';
+
+class DistrictSelectionScreen extends StatefulWidget {
+  final String selectedLanguage;
+  final String selectedState;
+
+  const DistrictSelectionScreen({
+    super.key,
+    required this.selectedLanguage,
+    required this.selectedState,
+  });
+
+  @override
+  State<DistrictSelectionScreen> createState() =>
+      _DistrictSelectionScreenState();
+}
+
+class _DistrictSelectionScreenState extends State<DistrictSelectionScreen> {
+  String? _selectedDistrict;
+
+  List<String> get _districts {
+    return indiaLocationData[widget.selectedState] ?? [];
+  }
+
+  void _continue() {
+    debugPrint('DISTRICT CONTINUE: $_selectedDistrict');
+
+    if (_selectedDistrict == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select your district')),
+      );
+      return;
+    }
+
+    final district = _selectedDistrict!;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (context) {
+          debugPrint('BUILDING NEWS HOME SCREEN');
+
+          return MainShell(
+            selectedLanguage: widget.selectedLanguage,
+            selectedState: widget.selectedState,
+            selectedDistrict: district,
+          );
+        },
+      ),
+      (route) => false,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F7F4),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // =====================================================
+            // TOP AREA
+            // =====================================================
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      width: 45,
+                      height: 45,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(
+                          color: Colors.black.withValues(alpha:0.06),
+                        ),
+                      ),
+                      child: const Icon(Icons.arrow_back_rounded, size: 21),
+                    ),
+                  ),
+
+                  const Spacer(),
+
+                  Text(
+                    '03 / 03',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black45,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // =====================================================
+            // TITLE
+            // =====================================================
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 35, 24, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Your local\nnews starts here.',
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 36,
+                      height: 1.05,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF111111),
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  Text(
+                    'Choose your district to get news, updates and stories from your area.',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      height: 1.55,
+                      color: Colors.black54,
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.language_rounded,
+                        size: 14,
+                        color: Colors.black45,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        widget.selectedLanguage,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black45,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Icon(
+                        Icons.location_on_outlined,
+                        size: 14,
+                        color: Colors.black45,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        widget.selectedState,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // =====================================================
+            // DISTRICT LIST
+            // =====================================================
+            Expanded(
+              child: ListView.builder(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 120),
+                itemCount: _districts.length,
+                itemBuilder: (context, index) {
+                  final district = _districts[index];
+
+                  final isSelected = _selectedDistrict == district;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedDistrict = district;
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 17,
+                          vertical: 15,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected ? Colors.black : Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: isSelected
+                                ? Colors.black
+                                : Colors.black.withValues(alpha:0.06),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 220),
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.white.withValues(alpha:0.15)
+                                    : const Color(0xFFF4F4F1),
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                              child: Icon(
+                                Icons.location_on_outlined,
+                                size: 20,
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.black54,
+                              ),
+                            ),
+
+                            const SizedBox(width: 13),
+
+                            Expanded(
+                              child: Text(
+                                district,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.black87,
+                                ),
+                              ),
+                            ),
+
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 220),
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.transparent,
+                                border: isSelected
+                                    ? null
+                                    : Border.all(
+                                        color: Colors.black26,
+                                        width: 1.5,
+                                      ),
+                              ),
+                              child: isSelected
+                                  ? const Icon(
+                                      Icons.check_rounded,
+                                      size: 16,
+                                      color: Colors.black,
+                                    )
+                                  : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      // =========================================================
+      // CONTINUE BUTTON
+      // =========================================================
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 15),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF7F7F4),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha:0.04),
+                blurRadius: 15,
+                offset: const Offset(0, -5),
+              ),
+            ],
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            height: 58,
+            child: ElevatedButton(
+              onPressed: _continue,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _selectedDistrict == null
+                    ? Colors.black26
+                    : Colors.black,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Continue to News',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.arrow_forward_rounded, size: 19),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+original

@@ -1,0 +1,383 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'region_selection_screen.dart';
+
+class LanguageSelectionScreen extends StatefulWidget {
+  const LanguageSelectionScreen({super.key});
+
+  @override
+  State<LanguageSelectionScreen> createState() =>
+      _LanguageSelectionScreenState();
+}
+
+class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
+  String? _selectedLanguage;
+
+  final List<NewsLanguage> _languages = const [
+    NewsLanguage(id: 'english', nativeName: 'English', englishName: 'English'),
+    NewsLanguage(id: 'hindi', nativeName: 'हिन्दी', englishName: 'Hindi'),
+    NewsLanguage(
+      id: 'hinglish',
+      nativeName: 'Hinglish',
+      englishName: 'Hindi + English',
+    ),
+    NewsLanguage(id: 'telugu', nativeName: 'తెలుగు', englishName: 'Telugu'),
+    NewsLanguage(id: 'urdu', nativeName: 'اردو', englishName: 'Urdu'),
+    NewsLanguage(id: 'tamil', nativeName: 'தமிழ்', englishName: 'Tamil'),
+    NewsLanguage(id: 'kannada', nativeName: 'ಕನ್ನಡ', englishName: 'Kannada'),
+    NewsLanguage(id: 'marathi', nativeName: 'मराठी', englishName: 'Marathi'),
+    NewsLanguage(id: 'bengali', nativeName: 'বাংলা', englishName: 'Bengali'),
+  ];
+
+  void _selectLanguage(String languageId) {
+    setState(() {
+      _selectedLanguage = languageId;
+    });
+  }
+
+  void _continue() {
+    if (_selectedLanguage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Please choose a language first.',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+          ),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            RegionSelectionScreen(selectedLanguage: _selectedLanguage!),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F7F4),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(24, 18, 24, 30),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ================================
+                    // PROGRESS
+                    // ================================
+                    Row(
+                      children: [
+                        Expanded(child: _ProgressBar(active: true)),
+                        const SizedBox(width: 6),
+                        Expanded(child: _ProgressBar(active: false)),
+                        const SizedBox(width: 6),
+                        Expanded(child: _ProgressBar(active: false)),
+                      ],
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // ================================
+                    // HEADER
+                    // ================================
+                    Text(
+                      'What language',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 38,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF111111),
+                        height: 1.05,
+                      ),
+                    ),
+
+                    Text(
+                      'feels like home?',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 38,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF111111),
+                        height: 1.05,
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    Text(
+                      'Choose the language you would like to read your news in.',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        height: 1.5,
+                        color: Colors.black54,
+                      ),
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    // ================================
+                    // LABEL
+                    // ================================
+                    Text(
+                      'SELECT LANGUAGE',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.3,
+                        color: Colors.black45,
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // ================================
+                    // LANGUAGE GRID
+                    // ================================
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _languages.length,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 1.35,
+                          ),
+                      itemBuilder: (context, index) {
+                        final language = _languages[index];
+
+                        final isSelected = _selectedLanguage == language.id;
+
+                        return _LanguageCard(
+                          language: language,
+                          isSelected: isSelected,
+                          onTap: () {
+                            _selectLanguage(language.id);
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ================================
+            // CONTINUE BUTTON
+            // ================================
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F7F4),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha:0.05),
+                    blurRadius: 20,
+                    offset: const Offset(0, -8),
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                height: 58,
+                child: ElevatedButton(
+                  onPressed: _continue,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF111111),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Continue',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Icon(Icons.arrow_forward_rounded, size: 19),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// PROGRESS BAR
+// ============================================================
+
+class _ProgressBar extends StatelessWidget {
+  final bool active;
+
+  const _ProgressBar({required this.active});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      height: 4,
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFF111111) : Colors.black12,
+        borderRadius: BorderRadius.circular(20),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// LANGUAGE CARD
+// ============================================================
+
+class _LanguageCard extends StatelessWidget {
+  final NewsLanguage language;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _LanguageCard({
+    required this.language,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        splashColor: Colors.black.withValues(alpha:0.05),
+        highlightColor: Colors.black.withValues(alpha:0.02),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF111111) : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected
+                  ? const Color(0xFF111111)
+                  : Colors.black.withValues(alpha:0.06),
+              width: isSelected ? 1.5 : 1,
+            ),
+            boxShadow: [
+              if (!isSelected)
+                BoxShadow(
+                  color: Colors.black.withValues(alpha:0.025),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      language.nativeName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: isSelected
+                            ? Colors.white
+                            : const Color(0xFF111111),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      language.englishName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: isSelected ? Colors.white60 : Colors.black45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ================================
+              // CHECKMARK
+              // ================================
+              Positioned(
+                top: 0,
+                right: 0,
+                child: AnimatedScale(
+                  scale: isSelected ? 1 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutBack,
+                  child: Container(
+                    width: 25,
+                    height: 25,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_rounded,
+                      size: 16,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// LANGUAGE MODEL
+// ============================================================
+
+class NewsLanguage {
+  final String id;
+  final String nativeName;
+  final String englishName;
+
+  const NewsLanguage({
+    required this.id,
+    required this.nativeName,
+    required this.englishName,
+  });
+}
+
+original
