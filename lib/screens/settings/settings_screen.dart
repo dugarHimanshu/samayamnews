@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/location_data.dart';
 import '../../services/app_strings.dart';
-import '../../services/app_theme_state.dart';
 import '../../services/auth_service.dart';
 import '../../services/session_prefs.dart';
 import '../home/onboarding/welcome_screen.dart';
@@ -195,6 +194,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             ),
                             onPressed: () async {
+                              final messenger = ScaffoldMessenger.of(this.context);
                               Navigator.pop(ctx);
                               setState(() {
                                 _state = tempState;
@@ -206,8 +206,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 district: tempDistrict,
                               );
                               widget.onLocationChanged?.call(tempState, tempDistrict);
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              messenger.showSnackBar(
                                 SnackBar(
                                   content: Text('Location updated to $tempDistrict, $tempState'),
                                   behavior: SnackBarBehavior.floating,

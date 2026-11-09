@@ -636,7 +636,7 @@ class _EditorDashboardScreenState extends State<EditorDashboardScreen>
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color: Colors.black.withValues(alpha: 0.03),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -742,7 +742,7 @@ class _EditorDashboardScreenState extends State<EditorDashboardScreen>
               side: BorderSide(
                 color: isSelected
                     ? Colors.transparent
-                    : Colors.black.withOpacity(0.06),
+                    : Colors.black.withValues(alpha: 0.06),
                 width: 1,
               ),
             ),
@@ -766,7 +766,7 @@ class _EditorDashboardScreenState extends State<EditorDashboardScreen>
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -804,7 +804,7 @@ class _EditorDashboardScreenState extends State<EditorDashboardScreen>
                       Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.1),
+                          color: Colors.orange.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
@@ -852,7 +852,7 @@ class _EditorDashboardScreenState extends State<EditorDashboardScreen>
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: info.accentColor.withOpacity(0.08),
+                        color: info.accentColor.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -971,7 +971,7 @@ class _EditorDashboardScreenState extends State<EditorDashboardScreen>
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.035),
+            color: Colors.black.withValues(alpha: 0.035),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

@@ -163,11 +163,11 @@ class _CategoryScreenState extends State<CategoryScreen> {
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 350),
         reverseTransitionDuration: const Duration(milliseconds: 280),
-        pageBuilder: (_, __, ___) => NewsStoryPage(
+        pageBuilder: (_, _, _) => NewsStoryPage(
           article: article,
           selectedLanguage: widget.selectedLanguage,
         ),
-        transitionsBuilder: (_, animation, __, child) {
+        transitionsBuilder: (_, animation, _, child) {
           final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
           return FadeTransition(
             opacity: curved,
@@ -508,7 +508,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
                                   height: 160,
                                   width: double.infinity,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
+                                  errorBuilder: (_, _, _) => Container(
                                     height: 140,
                                     color: Colors.grey.shade100,
                                     child: const Center(

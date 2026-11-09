@@ -229,7 +229,7 @@ class _PublishedNewsEditScreenState extends State<PublishedNewsEditScreen> {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.edit_note_rounded, size: 18),
@@ -262,7 +262,7 @@ class _PublishedNewsEditScreenState extends State<PublishedNewsEditScreen> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.06),
+                        color: Colors.black.withValues(alpha: 0.06),
                         blurRadius: 15,
                         offset: const Offset(0, 6),
                       ),
@@ -303,7 +303,7 @@ class _PublishedNewsEditScreenState extends State<PublishedNewsEditScreen> {
                             color: const Color(0xFFEAF7EE),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: const Color(0xFF318451).withOpacity(0.2),
+                              color: const Color(0xFF318451).withValues(alpha: 0.2),
                             ),
                           ),
                           child: const Text(
@@ -426,7 +426,7 @@ class _PublishedNewsEditScreenState extends State<PublishedNewsEditScreen> {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, -4),
             ),
@@ -494,11 +494,11 @@ class _PublishedNewsEditScreenState extends State<PublishedNewsEditScreen> {
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.black.withOpacity(0.06)),
+            borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.black.withOpacity(0.06)),
+            borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
@@ -549,11 +549,11 @@ class _PublishedNewsEditScreenState extends State<PublishedNewsEditScreen> {
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.black.withOpacity(0.06)),
+            borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.black.withOpacity(0.06)),
+            borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
@@ -561,7 +561,7 @@ class _PublishedNewsEditScreenState extends State<PublishedNewsEditScreen> {
           ),
           disabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.black.withOpacity(0.03)),
+            borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.03)),
           ),
           labelStyle: const TextStyle(color: Colors.black54, fontSize: 13),
           floatingLabelStyle: const TextStyle(

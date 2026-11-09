@@ -36,8 +36,8 @@ class _MagazineListScreenState extends State<MagazineListScreen> {
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 320),
         reverseTransitionDuration: const Duration(milliseconds: 250),
-        pageBuilder: (_, __, ___) => MagazineReaderPage(magazine: magazine),
-        transitionsBuilder: (_, animation, __, child) {
+        pageBuilder: (_, _, _) => MagazineReaderPage(magazine: magazine),
+        transitionsBuilder: (_, animation, _, child) {
           final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
           return FadeTransition(
             opacity: curved,
@@ -123,7 +123,7 @@ class _MagazineListScreenState extends State<MagazineListScreen> {
                               width: 96,
                               height: 142,
                               fit: BoxFit.cover,
-                              errorWidget: (_, __, ___) => Container(
+                              errorWidget: (_, _, _) => Container(
                                 width: 96,
                                 height: 142,
                                 color: isDark ? const Color(0xFF282A33) : Colors.grey.shade200,

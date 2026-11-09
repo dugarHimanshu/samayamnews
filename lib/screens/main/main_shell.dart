@@ -161,7 +161,7 @@ class _MainShellState extends State<MainShell> {
             children: [
               RepaintBoundary(
                 child: NewsHomeScreen(
-                  key: ValueKey('home_${_currentLanguage}_$_currentState\_$_currentDistrict'),
+                  key: ValueKey('home_${_currentLanguage}_${_currentState}_$_currentDistrict'),
                   selectedLanguage: _currentLanguage,
                   selectedState: _currentState,
                   selectedDistrict: _currentDistrict,
@@ -558,10 +558,10 @@ class _MenuSheet extends StatelessWidget {
                   PageRouteBuilder(
                     transitionDuration: const Duration(milliseconds: 320),
                     reverseTransitionDuration: const Duration(milliseconds: 250),
-                    pageBuilder: (_, __, ___) => MagazineListScreen(
+                    pageBuilder: (_, _, _) => MagazineListScreen(
                       selectedLanguage: selectedLanguage,
                     ),
-                    transitionsBuilder: (_, animation, __, child) {
+                    transitionsBuilder: (_, animation, _, child) {
                       final curved = CurvedAnimation(
                         parent: animation,
                         curve: Curves.easeOutCubic,

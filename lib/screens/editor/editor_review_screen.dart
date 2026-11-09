@@ -669,7 +669,7 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.rate_review_rounded, size: 16),
@@ -705,7 +705,7 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.06),
+                          color: Colors.black.withValues(alpha: 0.06),
                           blurRadius: 15,
                           offset: const Offset(0, 6),
                         ),
@@ -991,11 +991,11 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.black.withOpacity(0.06)),
+            borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.black.withOpacity(0.06)),
+            borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
@@ -1068,11 +1068,11 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.black.withOpacity(0.06)),
+            borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.black.withOpacity(0.06)),
+            borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
@@ -1080,7 +1080,7 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
           ),
           disabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.black.withOpacity(0.03)),
+            borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.03)),
           ),
           labelStyle: const TextStyle(color: Colors.black54, fontSize: 13),
           floatingLabelStyle: const TextStyle(

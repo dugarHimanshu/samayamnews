@@ -763,7 +763,6 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
   double _lastPage = 0;
   final Set<String> _likedArticleIds = {};
   RealtimeChannel? _channel;
-  static const int _newsPerAd = 4; // an ad approximately every 4 news items
 
   @override
   void initState() {
@@ -956,9 +955,6 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
     // Case 1: Ad page
     if (item is AdvertisementItem) {
       return _AdPage(ad: item);
-    }
-    if (item is _AdSlot) {
-      return _AdPage(ad: demoAds[index % demoAds.length]);
     }
 
     // Case 2: Magazine page
@@ -1503,14 +1499,6 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
 }
 
 // ============================================================
-// AD SLOT MARKER
-// ============================================================
-
-class _AdSlot {
-  const _AdSlot();
-}
-
-// ============================================================
 // AD PAGE
 // A rich, responsive sponsored feature page
 // ============================================================
@@ -1559,7 +1547,7 @@ class _AdPage extends StatelessWidget {
                           height: screenHeight < 680 ? 150 : 200,
                           width: double.infinity,
                           fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => Container(
+                          errorWidget: (_, _, _) => Container(
                             height: 180,
                             color: Colors.black12,
                             child: const Center(
@@ -1706,8 +1694,8 @@ class _MagazineFeedCardState extends State<_MagazineFeedCard> {
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 320),
         reverseTransitionDuration: const Duration(milliseconds: 250),
-        pageBuilder: (_, __, ___) => MagazineReaderPage(magazine: widget.magazine),
-        transitionsBuilder: (_, animation, __, child) {
+        pageBuilder: (_, _, _) => MagazineReaderPage(magazine: widget.magazine),
+        transitionsBuilder: (_, animation, _, child) {
           final curved = CurvedAnimation(
             parent: animation,
             curve: Curves.easeOutCubic,
@@ -1831,7 +1819,7 @@ class _MagazineFeedCardState extends State<_MagazineFeedCard> {
                             CachedNetworkImage(
                               imageUrl: widget.magazine.coverImageUrl,
                               fit: BoxFit.cover,
-                              errorWidget: (_, __, ___) => Container(
+                              errorWidget: (_, _, _) => Container(
                                 color: const Color(0xFF22262F),
                                 child: const Center(
                                   child: Icon(Icons.picture_as_pdf_rounded,
