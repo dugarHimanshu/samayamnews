@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // NEW: needed to check login state for Fill Form
 
 import '../../widgets/home/glass_header.dart';
@@ -14,6 +15,9 @@ import '../home/onboarding/welcome_screen.dart';
 import '../location/location_screen.dart';
 import '../saved/saved_screen.dart';
 import '../contributor/news_submission_form.dart'; // NEW: real Fill Form screen
+import '../magazine/magazine_list_screen.dart';
+import '../settings/settings_screen.dart';
+import '../../services/app_theme_state.dart';
 
 class MainShell extends StatefulWidget {
   final String selectedLanguage;
@@ -34,14 +38,19 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   late final PageController _pageController;
 
-  // 1. REPLACED setState WITH ValueNotifiers
-  // This prevents the entire screen from rebuilding when you swipe or scroll.
+  late String _currentLanguage;
+  late String _currentState;
+  late String _currentDistrict;
+
   final ValueNotifier<int> _currentIndex = ValueNotifier(0);
   final ValueNotifier<bool> _chromeVisible = ValueNotifier(true);
 
   @override
   void initState() {
     super.initState();
+    _currentLanguage = widget.selectedLanguage;
+    _currentState = widget.selectedState;
+    _currentDistrict = widget.selectedDistrict;
     _pageController = PageController(initialPage: 0);
   }
 
@@ -98,9 +107,18 @@ class _MainShellState extends State<MainShell> {
       isScrollControlled: true,
       builder: (context) {
         return _MenuSheet(
-          selectedLanguage: widget.selectedLanguage,
-          selectedState: widget.selectedState,
-          selectedDistrict: widget.selectedDistrict,
+          selectedLanguage: _currentLanguage,
+          selectedState: _currentState,
+          selectedDistrict: _currentDistrict,
+          onLanguageChanged: (newLang) {
+            setState(() => _currentLanguage = newLang);
+          },
+          onLocationChanged: (newState, newDistrict) {
+            setState(() {
+              _currentState = newState;
+              _currentDistrict = newDistrict;
+            });
+          },
         );
       },
     );
@@ -114,7 +132,7 @@ class _MainShellState extends State<MainShell> {
       elevation: 0,
       isScrollControlled: true,
       builder: (context) {
-        return _ProfileSheet(language: widget.selectedLanguage);
+        return _ProfileSheet(language: _currentLanguage);
       },
     );
   }
@@ -143,38 +161,43 @@ class _MainShellState extends State<MainShell> {
             children: [
               RepaintBoundary(
                 child: NewsHomeScreen(
-                  selectedLanguage: widget.selectedLanguage,
-                  selectedState: widget.selectedState,
-                  selectedDistrict: widget.selectedDistrict,
+                  key: ValueKey('home_${_currentLanguage}_$_currentState\_$_currentDistrict'),
+                  selectedLanguage: _currentLanguage,
+                  selectedState: _currentState,
+                  selectedDistrict: _currentDistrict,
                   onChromeVisibilityChanged: _setChromeVisible,
                 ),
               ),
               RepaintBoundary(
                 child: CategoryScreen(
-                  selectedLanguage: widget.selectedLanguage,
-                  selectedState: widget.selectedState,
-                  selectedDistrict: widget.selectedDistrict,
+                  key: ValueKey('category_$_currentLanguage'),
+                  selectedLanguage: _currentLanguage,
+                  selectedState: _currentState,
+                  selectedDistrict: _currentDistrict,
                 ),
               ),
               RepaintBoundary(
                 child: LocationScreen(
-                  selectedLanguage: widget.selectedLanguage,
-                  selectedState: widget.selectedState,
-                  selectedDistrict: widget.selectedDistrict,
+                  key: ValueKey('loc_${_currentState}_$_currentDistrict'),
+                  selectedLanguage: _currentLanguage,
+                  selectedState: _currentState,
+                  selectedDistrict: _currentDistrict,
                 ),
               ),
               RepaintBoundary(
                 child: SearchScreen(
-                  selectedLanguage: widget.selectedLanguage,
-                  selectedState: widget.selectedState,
-                  selectedDistrict: widget.selectedDistrict,
+                  key: ValueKey('search_$_currentLanguage'),
+                  selectedLanguage: _currentLanguage,
+                  selectedState: _currentState,
+                  selectedDistrict: _currentDistrict,
                 ),
               ),
               RepaintBoundary(
                 child: SavedScreen(
-                  selectedLanguage: widget.selectedLanguage,
-                  selectedState: widget.selectedState,
-                  selectedDistrict: widget.selectedDistrict,
+                  key: ValueKey('saved_$_currentLanguage'),
+                  selectedLanguage: _currentLanguage,
+                  selectedState: _currentState,
+                  selectedDistrict: _currentDistrict,
                 ),
               ),
             ],
@@ -246,7 +269,7 @@ class _MainShellState extends State<MainShell> {
                     return NewsBottomNavigation(
                       currentIndex: index,
                       onItemSelected: _onNavigationChanged,
-                      language: widget.selectedLanguage,
+                      language: _currentLanguage,
                     );
                   },
                 ),
@@ -267,11 +290,15 @@ class _MenuSheet extends StatelessWidget {
   final String selectedLanguage;
   final String selectedState;
   final String selectedDistrict;
+  final ValueChanged<String>? onLanguageChanged;
+  final void Function(String state, String district)? onLocationChanged;
 
   const _MenuSheet({
     required this.selectedLanguage,
     required this.selectedState,
     required this.selectedDistrict,
+    this.onLanguageChanged,
+    this.onLocationChanged,
   });
 
   // NEW: Fill Form tap handler.
@@ -299,18 +326,164 @@ class _MenuSheet extends StatelessWidget {
     );
   }
 
+  // Language selection modal (English, Hindi, Telugu)
+  void _showLanguagePicker(BuildContext context) {
+    const langs = ['English', 'Hindi', 'Telugu'];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
+        return Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E2026) : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.black12,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Select Language',
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ...langs.map((l) {
+                  final isSelected = l.toLowerCase() == selectedLanguage.toLowerCase();
+                  return ListTile(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    title: Text(l, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: Colors.black) : null,
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      Navigator.pop(context); // close menu
+                      onLanguageChanged?.call(l);
+                      await SessionPrefs.saveSelections(
+                        language: l,
+                        state: selectedState,
+                        district: selectedDistrict,
+                      );
+                    },
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Theme selection modal
+  void _showThemePicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
+        return Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E2026) : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.black12,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'App Theme',
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ListTile(
+                  leading: const Icon(Icons.light_mode_outlined),
+                  title: const Text('Light Theme', style: TextStyle(fontWeight: FontWeight.w600)),
+                  trailing: AppThemeState.instance.themeMode == ThemeMode.light
+                      ? const Icon(Icons.check_circle_rounded, color: Colors.black)
+                      : null,
+                  onTap: () {
+                    AppThemeState.instance.setThemeMode(ThemeMode.light);
+                    Navigator.pop(ctx);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.dark_mode_outlined),
+                  title: const Text('Dark Theme', style: TextStyle(fontWeight: FontWeight.w600)),
+                  trailing: AppThemeState.instance.themeMode == ThemeMode.dark
+                      ? const Icon(Icons.check_circle_rounded, color: Colors.white)
+                      : null,
+                  onTap: () {
+                    AppThemeState.instance.setThemeMode(ThemeMode.dark);
+                    Navigator.pop(ctx);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.brightness_auto_outlined),
+                  title: const Text('System Default', style: TextStyle(fontWeight: FontWeight.w600)),
+                  trailing: AppThemeState.instance.themeMode == ThemeMode.system
+                      ? const Icon(Icons.check_circle_rounded)
+                      : null,
+                  onTap: () {
+                    AppThemeState.instance.setThemeMode(ThemeMode.system);
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // NEW: check login state once per build so we know whether to show
-    // the lock icon next to "Fill Form"
     final isGuest = Supabase.instance.client.auth.currentUser == null;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return SafeArea(
       child: Container(
         margin: const EdgeInsets.fromLTRB(12, 12, 12, 12),
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? const Color(0xFF1E2026) : Colors.white,
           borderRadius: BorderRadius.circular(28),
           boxShadow: const [
             BoxShadow(
@@ -327,7 +500,7 @@ class _MenuSheet extends StatelessWidget {
               width: 38,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.black12,
+                color: isDark ? Colors.white24 : Colors.black12,
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
@@ -358,43 +531,84 @@ class _MenuSheet extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
+
+            // 1) Theme option (Renamed from dark mode to Theme)
             _MenuItem(
-              icon: Icons.dark_mode_outlined,
-              title: AppStrings.t('dark_mode', selectedLanguage),
-              onTap: () {},
+              icon: Icons.palette_outlined,
+              title: AppStrings.t('theme', selectedLanguage),
+              trailing: AppThemeState.instance.isDarkMode ? 'Dark' : 'Light',
+              onTap: () => _showThemePicker(context),
             ),
+
+            // 2) Language (English, Hindi, Telugu)
             _MenuItem(
               icon: Icons.language_outlined,
               title: AppStrings.t('language', selectedLanguage),
               trailing: selectedLanguage,
-              onTap: () {},
+              onTap: () => _showLanguagePicker(context),
             ),
+
+            // 5) Magazine
             _MenuItem(
-              icon: Icons.location_on_outlined,
-              title: AppStrings.t('location', selectedLanguage),
-              trailing: '$selectedDistrict, $selectedState',
-              onTap: () {},
+              icon: Icons.auto_stories_outlined,
+              title: AppStrings.t('magazine', selectedLanguage),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(
+                  PageRouteBuilder(
+                    transitionDuration: const Duration(milliseconds: 320),
+                    reverseTransitionDuration: const Duration(milliseconds: 250),
+                    pageBuilder: (_, __, ___) => MagazineListScreen(
+                      selectedLanguage: selectedLanguage,
+                    ),
+                    transitionsBuilder: (_, animation, __, child) {
+                      final curved = CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                      );
+                      return FadeTransition(
+                        opacity: curved,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0.05, 0),
+                            end: Offset.zero,
+                          ).animate(curved),
+                          child: child,
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
             ),
-            _MenuItem(
-              icon: Icons.bookmark_outline_rounded,
-              title: AppStrings.t('saved_news', selectedLanguage),
-              onTap: () {},
-            ),
-            // NEW: Fill Form menu item.
-            // Shows a lock icon (via `trailing`) when the user is a guest.
+
+            // 6) Fill Form (unchanged)
             _MenuItem(
               icon: Icons.edit_note_rounded,
               title: 'Fill Form',
-              trailing: isGuest
-                  ? null
-                  : null, // reserved for future "3/10" usage text
               showLock: isGuest,
               onTap: () => _onFillFormTap(context),
             ),
+
+            // 7) Settings (now contains Location & Account Deletion)
             _MenuItem(
               icon: Icons.settings_outlined,
               title: AppStrings.t('settings', selectedLanguage),
-              onTap: () {},
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SettingsScreen(
+                      selectedLanguage: selectedLanguage,
+                      selectedState: selectedState,
+                      selectedDistrict: selectedDistrict,
+                      onLanguageChanged: onLanguageChanged,
+                      onLocationChanged: onLocationChanged,
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),

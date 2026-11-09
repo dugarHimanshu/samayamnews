@@ -20,6 +20,11 @@ class AppStrings {
       'hindi': 'सेव किया गया',
       'telugu': 'సేవ్ చేయబడింది',
     },
+    'theme': {
+      'english': 'Theme',
+      'hindi': 'थीम',
+      'telugu': 'థీమ్',
+    },
     'dark_mode': {
       'english': 'Dark mode',
       'hindi': 'डार्क मोड',
@@ -36,6 +41,11 @@ class AppStrings {
       'english': 'Settings',
       'hindi': 'सेटिंग्स',
       'telugu': 'సెట్టింగ్‌లు',
+    },
+    'magazine': {
+      'english': 'Magazine',
+      'hindi': 'पत्रिका',
+      'telugu': 'పత్రిక',
     },
     'your_profile': {
       'english': 'Your Profile',

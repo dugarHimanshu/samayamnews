@@ -1,13 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../data/demo_news.dart';
 import '../../models/news_article.dart';
 import '../../services/saved_news_store.dart';
-import '../../widgets/home/glass_header.dart';
-import '../../widgets/home/news_bottom_navigation.dart';
-import '../search/search_screen.dart';
 import '../home/news_story_page.dart';
+
+class CategoryItemInfo {
+  final String keyName;
+  final String label;
+  final IconData icon;
+  final Color primaryColor;
+  final Color accentColor;
+  final String description;
+
+  const CategoryItemInfo({
+    required this.keyName,
+    required this.label,
+    required this.icon,
+    required this.primaryColor,
+    required this.accentColor,
+    required this.description,
+  });
+}
 
 class CategoryScreen extends StatefulWidget {
   final String selectedLanguage;
@@ -26,61 +42,96 @@ class CategoryScreen extends StatefulWidget {
 }
 
 class _CategoryScreenState extends State<CategoryScreen> {
-  final ValueNotifier<int> _selectedCategoryNotifier = ValueNotifier(0);
-
-  // ============================================================
-  // SAVED NEWS
-  // ============================================================
-
   final SavedNewsStore _savedStore = SavedNewsStore.instance;
 
-  static const List<String> _categories = [
-    'All',
-    'Politics',
-    'Business',
-    'Technology',
-    'Sports',
-    'Entertainment',
-    'World',
-    'India',
-    'Lifestyle',
+  // Selected category for drill-down news view (null = viewing icon grid)
+  CategoryItemInfo? _selectedCategory;
+
+  static const List<CategoryItemInfo> _categories = [
+    CategoryItemInfo(
+      keyName: 'politics',
+      label: 'Politics',
+      icon: Icons.account_balance_rounded,
+      primaryColor: Color(0xFF1E3A8A), // Rich Navy
+      accentColor: Color(0xFF3B82F6),
+      description: 'Elections, government policies, and national affairs.',
+    ),
+    CategoryItemInfo(
+      keyName: 'business',
+      label: 'Business',
+      icon: Icons.trending_up_rounded,
+      primaryColor: Color(0xFF047857), // Forest Green
+      accentColor: Color(0xFF10B981),
+      description: 'Markets, economy, startups, and corporate milestones.',
+    ),
+    CategoryItemInfo(
+      keyName: 'technology',
+      label: 'Technology',
+      icon: Icons.biotech_rounded,
+      primaryColor: Color(0xFF6D28D9), // Electric Purple
+      accentColor: Color(0xFF8B5CF6),
+      description: 'AI breakthroughs, gadgets, software, and cybersecurity.',
+    ),
+    CategoryItemInfo(
+      keyName: 'sports',
+      label: 'Sports',
+      icon: Icons.sports_cricket_rounded,
+      primaryColor: Color(0xFFC2410C), // Deep Crimson/Orange
+      accentColor: Color(0xFFF97316),
+      description: 'Cricket, football, championships, and athletic feats.',
+    ),
+    CategoryItemInfo(
+      keyName: 'entertainment',
+      label: 'Entertainment',
+      icon: Icons.movie_filter_rounded,
+      primaryColor: Color(0xFFBE185D), // Magenta Pink
+      accentColor: Color(0xFFEC4899),
+      description: 'Cinema, music, celebrity culture, and web series.',
+    ),
+    CategoryItemInfo(
+      keyName: 'world',
+      label: 'World',
+      icon: Icons.public_rounded,
+      primaryColor: Color(0xFF0369A1), // Sky Deep Blue
+      accentColor: Color(0xFF0EA5E9),
+      description: 'Global diplomacy, conflict, treaties, and international news.',
+    ),
+    CategoryItemInfo(
+      keyName: 'india',
+      label: 'India',
+      icon: Icons.flag_rounded,
+      primaryColor: Color(0xFFB45309), // Amber/Saffron
+      accentColor: Color(0xFFF59E0B),
+      description: 'Nationwide headlines, state developments, and social impact.',
+    ),
+    CategoryItemInfo(
+      keyName: 'lifestyle',
+      label: 'Lifestyle',
+      icon: Icons.spa_rounded,
+      primaryColor: Color(0xFF0F766E), // Deep Teal
+      accentColor: Color(0xFF14B8A6),
+      description: 'Health, wellness, gastronomy, travel, and mindful living.',
+    ),
   ];
 
   @override
   void initState() {
     super.initState();
-
-    // Load existing saved articles.
     _savedStore.load();
   }
 
-  @override
-  void dispose() {
-    _selectedCategoryNotifier.dispose();
-    super.dispose();
-  }
-
-  // ============================================================
-  // TOGGLE BOOKMARK
-  // ============================================================
-
   Future<void> _toggleBookmark(NewsArticle article) async {
     await _savedStore.toggle(article.title);
-
     if (!mounted) return;
-
-    // Refresh the bookmark icon immediately.
     setState(() {});
 
     final bool saved = _savedStore.isSaved(article.title);
-
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         duration: const Duration(milliseconds: 1400),
         behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.fromLTRB(18, 0, 18, 100),
+        margin: const EdgeInsets.fromLTRB(18, 0, 18, 90),
         backgroundColor: const Color(0xFF151515),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         content: Row(
@@ -107,62 +158,22 @@ class _CategoryScreenState extends State<CategoryScreen> {
     );
   }
 
-  // ============================================================
-  // BOTTOM NAVIGATION
-  // ============================================================
-
-  void _handleNavigation(int index) {
-    if (index == 1) return;
-
-    if (index == 0) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-      return;
-    }
-
-    if (index == 2) {
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) {
-            return SearchScreen(
-              selectedLanguage: widget.selectedLanguage,
-              selectedState: widget.selectedState,
-              selectedDistrict: widget.selectedDistrict,
-            );
-          },
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-        ),
-      );
-    }
-  }
-
-  // ============================================================
-  // OPEN FULL STORY
-  // ============================================================
-
   void _openArticle(NewsArticle article) {
     Navigator.of(context).push(
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 420),
-        reverseTransitionDuration: const Duration(milliseconds: 350),
-        pageBuilder: (context, animation, secondaryAnimation) {
-          return NewsStoryPage(
-            article: article,
-            selectedLanguage: widget.selectedLanguage,
-          );
-        },
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final curved = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          );
-
+        transitionDuration: const Duration(milliseconds: 350),
+        reverseTransitionDuration: const Duration(milliseconds: 280),
+        pageBuilder: (_, __, ___) => NewsStoryPage(
+          article: article,
+          selectedLanguage: widget.selectedLanguage,
+        ),
+        transitionsBuilder: (_, animation, __, child) {
+          final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
           return FadeTransition(
             opacity: curved,
             child: SlideTransition(
               position: Tween<Offset>(
-                begin: const Offset(0, 0.035),
+                begin: const Offset(0, 0.04),
                 end: Offset.zero,
               ).animate(curved),
               child: child,
@@ -173,763 +184,549 @@ class _CategoryScreenState extends State<CategoryScreen> {
     );
   }
 
-  // ============================================================
-  // BUILD
-  // ============================================================
+  List<NewsArticle> _getArticlesForCategory(String categoryKey) {
+    return demoNews.where((a) {
+      final c = a.category.toLowerCase().trim();
+      return c == categoryKey.toLowerCase().trim();
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F5),
-      body: Stack(
-        children: [
-          CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              // ==================================================
-              // SPACE FOR GLASS HEADER
-              // ==================================================
-              const SliverToBoxAdapter(child: SizedBox(height: 110)),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 320),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        child: _selectedCategory == null
+            ? _buildCategoryGrid()
+            : _buildCategoryArticlesView(_selectedCategory!),
+      ),
+    );
+  }
 
-              // ==================================================
-              // EXPLORE HEADER
-              // ==================================================
-              const SliverToBoxAdapter(child: _ExploreHeader()),
+  // ============================================================
+  // VIEW 1: VIBRANT INTERACTIVE CATEGORY ICONS GRID
+  // ============================================================
+  Widget _buildCategoryGrid() {
+    return CustomScrollView(
+      key: const ValueKey('category_grid'),
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        // Spacing for GlassHeader
+        const SliverToBoxAdapter(child: SizedBox(height: 105)),
 
-              // ==================================================
-              // CATEGORY FILTERS
-              // ==================================================
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 52,
-                  child: ValueListenableBuilder<int>(
-                    valueListenable: _selectedCategoryNotifier,
-                    builder: (context, selectedIndex, _) {
-                      return ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: _categories.length,
-                        separatorBuilder: (_, _) {
-                          return const SizedBox(width: 9);
-                        },
-                        itemBuilder: (context, index) {
-                          return _BouncyCategoryPill(
-                            label: _categories[index],
-                            isSelected: selectedIndex == index,
-                            onTap: () {
-                              _selectedCategoryNotifier.value = index;
-                            },
-                          );
-                        },
-                      );
-                    },
+        // Section Title
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 10, 22, 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 24,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFB58A3A), Color(0xFFE4C98A)],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'EXPLORE BEATS',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2.0,
+                        color: const Color(0xFFB18A48),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Categories',
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 38,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.5,
+                    color: const Color(0xFF151515),
                   ),
                 ),
-              ),
+                const SizedBox(height: 6),
+                Text(
+                  'Pick a topic to dive into curated stories & live breaking news.',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: Colors.black54,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 26)),
+        // 2-Column Grid of Stylish Category Cards
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 120),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 14,
+              mainAxisSpacing: 14,
+              childAspectRatio: 0.95,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final cat = _categories[index];
+                final articleCount = _getArticlesForCategory(cat.keyName).length;
 
-              // ==================================================
-              // ARTICLE LIST
-              // ==================================================
-              SliverToBoxAdapter(
-                child: ValueListenableBuilder<int>(
-                  valueListenable: _selectedCategoryNotifier,
-                  builder: (context, selectedIndex, _) {
-                    final selectedCategory = _categories[selectedIndex]
-                        .toLowerCase();
-
-                    final articles = selectedIndex == 0
-                        ? demoNews
-                        : demoNews
-                              .where(
-                                (article) =>
-                                    article.category.toLowerCase() ==
-                                    selectedCategory,
-                              )
-                              .toList();
-
-                    return AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      child: articles.isEmpty
-                          ? const _EmptyState()
-                          : ListView.separated(
-                              key: ValueKey<int>(selectedIndex),
-                              padding: const EdgeInsets.fromLTRB(
-                                20,
-                                0,
-                                20,
-                                125,
-                              ),
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: articles.length,
-                              separatorBuilder: (_, _) {
-                                return const SizedBox(height: 18);
-                              },
-                              itemBuilder: (context, index) {
-                                final article = articles[index];
-
-                                return _BouncyNewsCard(
-                                  article: article,
-                                  bookmarked: _savedStore.isSaved(
-                                    article.title,
-                                  ),
-                                  onBookmark: () {
-                                    _toggleBookmark(article);
-                                  },
-                                  onReadMore: () {
-                                    _openArticle(article);
-                                  },
-                                );
-                              },
-                            ),
-                    );
+                return _CategoryCardTile(
+                  category: cat,
+                  articleCount: articleCount,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    setState(() {
+                      _selectedCategory = cat;
+                    });
                   },
-                ),
-              ),
-            ],
-          ),
-
-          // ============================================================
-          // GLASS HEADER
-          // ============================================================
-          const Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: GlassHeader(
-              visible: true,
-              onMenuTap: _noop,
-              onProfileTap: _noop,
+                );
+              },
+              childCount: _categories.length,
             ),
           ),
-
-          // ============================================================
-          // BOTTOM NAVIGATION
-          // ============================================================
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: NewsBottomNavigation(
-              currentIndex: 1,
-              onItemSelected: _handleNavigation,
-              language: widget.selectedLanguage,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
-}
 
-void _noop() {}
+  // ============================================================
+  // VIEW 2: CATEGORY SPECIFIC ARTICLES LIST WITH BACK BUTTON
+  // ============================================================
+  Widget _buildCategoryArticlesView(CategoryItemInfo category) {
+    final articles = _getArticlesForCategory(category.keyName);
 
-// ============================================================================
-// EXPLORE HEADER
-// ============================================================================
+    return CustomScrollView(
+      key: ValueKey('category_articles_${category.keyName}'),
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        // Spacing for GlassHeader
+        const SliverToBoxAdapter(child: SizedBox(height: 105)),
 
-class _ExploreHeader extends StatelessWidget {
-  const _ExploreHeader();
+        // Category Detail Banner with Back Button
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Back button & category badge
+                Row(
+                  children: [
+                    Material(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      elevation: 1,
+                      shadowColor: Colors.black12,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          setState(() {
+                            _selectedCategory = null;
+                          });
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.arrow_back_rounded, size: 17, color: Colors.black87),
+                              SizedBox(width: 6),
+                              Text(
+                                'All Categories',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: category.primaryColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: category.primaryColor.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(category.icon, size: 14, color: category.primaryColor),
+                          const SizedBox(width: 5),
+                          Text(
+                            '${articles.length} Stories',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: category.primaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
 
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 8, 22, 30),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 24,
-                height: 2,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFB58A3A), Color(0xFFE4C98A)],
+                const SizedBox(height: 18),
+
+                // Category Headline Header
+                Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [category.primaryColor, category.accentColor],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: category.primaryColor.withValues(alpha: 0.35),
+                            blurRadius: 12,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: Icon(category.icon, color: Colors.white, size: 24),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            category.label,
+                            style: GoogleFonts.playfairDisplay(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF151515),
+                            ),
+                          ),
+                          Text(
+                            category.description,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11.5, color: Colors.black54),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Articles List
+        if (articles.isEmpty)
+          SliverToBoxAdapter(
+            child: Container(
+              margin: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.feed_outlined, size: 48, color: Colors.grey.shade400),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No articles found in ${category.label}',
+                    style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black54),
                   ),
-                  borderRadius: BorderRadius.circular(20),
-                ),
+                ],
               ),
+            ),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 120),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final article = articles[index];
+                  final isBookmarked = _savedStore.isSaved(article.title);
 
-              const SizedBox(width: 8),
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.035),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(20),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => _openArticle(article),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Article Hero Image
+                            if (article.imageUrl.isNotEmpty)
+                              ClipRRect(
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                                child: Image.network(
+                                  article.imageUrl,
+                                  height: 160,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    height: 140,
+                                    color: Colors.grey.shade100,
+                                    child: const Center(
+                                      child: Icon(Icons.broken_image_rounded, color: Colors.black26),
+                                    ),
+                                  ),
+                                ),
+                              ),
 
-              Text(
-                'EXPLORE',
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 2.0,
-                  color: const Color(0xFFB18A48),
-                ),
+                            // Article Body
+                            Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        article.source.toUpperCase(),
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0.5,
+                                          color: category.primaryColor,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Text(
+                                        article.publishedAt,
+                                        style: const TextStyle(fontSize: 10.5, color: Colors.black45),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    article.title,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 16.5,
+                                      fontWeight: FontWeight.w700,
+                                      height: 1.25,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    article.description,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.black54,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        'Tap to read full story',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: category.primaryColor,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      IconButton(
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        icon: Icon(
+                                          isBookmarked
+                                              ? Icons.bookmark_rounded
+                                              : Icons.bookmark_border_rounded,
+                                          color: isBookmarked ? Colors.amber.shade800 : Colors.black45,
+                                          size: 20,
+                                        ),
+                                        onPressed: () => _toggleBookmark(article),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                childCount: articles.length,
               ),
-            ],
-          ),
-
-          const SizedBox(height: 14),
-
-          Text(
-            'Categories',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 42,
-              fontWeight: FontWeight.w600,
-              height: 1.0,
-              letterSpacing: -0.5,
-              color: const Color(0xFF151515),
             ),
           ),
-
-          const SizedBox(height: 10),
-
-          Text(
-            'Discover stories curated from every corner '
-            'of the world.',
-            style: GoogleFonts.inter(
-              fontSize: 13.5,
-              height: 1.5,
-              fontWeight: FontWeight.w400,
-              color: const Color(0xFF6D6D6D),
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }
 
 // ============================================================================
-// CATEGORY PILL
+// CATEGORY CARD TILE
 // ============================================================================
 
-class _BouncyCategoryPill extends StatefulWidget {
-  final String label;
-  final bool isSelected;
+class _CategoryCardTile extends StatefulWidget {
+  final CategoryItemInfo category;
+  final int articleCount;
   final VoidCallback onTap;
 
-  const _BouncyCategoryPill({
-    required this.label,
-    required this.isSelected,
+  const _CategoryCardTile({
+    required this.category,
+    required this.articleCount,
     required this.onTap,
   });
 
   @override
-  State<_BouncyCategoryPill> createState() => _BouncyCategoryPillState();
+  State<_CategoryCardTile> createState() => _CategoryCardTileState();
 }
 
-class _BouncyCategoryPillState extends State<_BouncyCategoryPill> {
+class _CategoryCardTileState extends State<_CategoryCardTile> {
   bool _isPressed = false;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-
-      onTapDown: (_) {
-        setState(() {
-          _isPressed = true;
-        });
-      },
-
+      onTapDown: (_) => setState(() => _isPressed = true),
       onTapUp: (_) {
-        setState(() {
-          _isPressed = false;
-        });
-
+        setState(() => _isPressed = false);
         widget.onTap();
       },
-
-      onTapCancel: () {
-        setState(() {
-          _isPressed = false;
-        });
-      },
-
+      onTapCancel: () => setState(() => _isPressed = false),
       child: AnimatedScale(
-        scale: _isPressed ? 0.93 : 1,
-        duration: const Duration(milliseconds: 150),
+        scale: _isPressed ? 0.94 : 1.0,
+        duration: const Duration(milliseconds: 140),
         curve: Curves.easeOut,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 21),
-          alignment: Alignment.center,
+        child: Container(
           decoration: BoxDecoration(
-            color: widget.isSelected ? const Color(0xFF151515) : Colors.white,
-            borderRadius: BorderRadius.circular(20),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: widget.category.primaryColor.withValues(alpha: 0.08),
+                blurRadius: 18,
+                offset: const Offset(0, 7),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 10,
+              ),
+            ],
             border: Border.all(
-              color: widget.isSelected
-                  ? const Color(0xFF151515)
-                  : const Color(0x1A000000),
-            ),
-            boxShadow: widget.isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.12),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ]
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.025),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-          ),
-          child: Text(
-            widget.label,
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: widget.isSelected ? FontWeight.w700 : FontWeight.w500,
-              letterSpacing: 0.2,
-              color: widget.isSelected ? Colors.white : const Color(0xFF444444),
+              color: Colors.black.withValues(alpha: 0.04),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// NEWS CARD
-// ============================================================================
-
-class _BouncyNewsCard extends StatefulWidget {
-  final NewsArticle article;
-  final bool bookmarked;
-  final VoidCallback onBookmark;
-  final VoidCallback onReadMore;
-
-  const _BouncyNewsCard({
-    required this.article,
-    required this.bookmarked,
-    required this.onBookmark,
-    required this.onReadMore,
-  });
-
-  @override
-  State<_BouncyNewsCard> createState() => _BouncyNewsCardState();
-}
-
-class _BouncyNewsCardState extends State<_BouncyNewsCard> {
-  bool _bookmarkPressed = false;
-  bool _readMorePressed = false;
-
-  // ============================================================
-  // BOOKMARK PRESS ANIMATION
-  // ============================================================
-
-  void _bookmarkDown() {
-    if (!mounted) return;
-
-    setState(() {
-      _bookmarkPressed = true;
-    });
-  }
-
-  void _bookmarkUp() {
-    if (!mounted) return;
-
-    setState(() {
-      _bookmarkPressed = false;
-    });
-  }
-
-  // ============================================================
-  // READ MORE PRESS ANIMATION
-  // ============================================================
-
-  void _readMoreDown() {
-    if (!mounted) return;
-
-    setState(() {
-      _readMorePressed = true;
-    });
-  }
-
-  void _readMoreUp() {
-    if (!mounted) return;
-
-    setState(() {
-      _readMorePressed = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RepaintBoundary(
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(25),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.045),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ============================================================
-            // HERO IMAGE
-            // ============================================================
-            Hero(
-              tag: 'category-image-${widget.article.imageUrl}',
-              child: SizedBox(
-                height: 220,
-                width: double.infinity,
-                child: Stack(
-                  fit: StackFit.expand,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Top Category Icon badge
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Image.network(
-                      widget.article.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: const Color(0xFFF2F2F0),
-                          child: const Icon(
-                            Icons.image_outlined,
-                            size: 45,
-                            color: Color(0x40000000),
-                          ),
-                        );
-                      },
-                    ),
-
-                    const DecoratedBox(
+                    Container(
+                      width: 46,
+                      height: 46,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Colors.transparent, Color(0x22000000)],
+                          colors: [
+                            widget.category.primaryColor,
+                            widget.category.accentColor,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: [
+                          BoxShadow(
+                            color: widget.category.primaryColor.withValues(alpha: 0.32),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(widget.category.icon, color: Colors.white, size: 23),
+                    ),
+                    const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: Colors.black26),
+                  ],
+                ),
+
+                // Title and story count
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.category.label,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF151515),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      widget.articleCount > 0 ? '${widget.articleCount} Articles' : 'Explore news',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: widget.category.primaryColor,
                       ),
                     ),
                   ],
                 ),
-              ),
+              ],
             ),
-
-            // ============================================================
-            // EDITORIAL CONTENT
-            // ============================================================
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 19, 20, 17),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ========================================================
-                  // CATEGORY + BOOKMARK
-                  // ========================================================
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF2F2F0),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          widget.article.category.toUpperCase(),
-                          style: GoogleFonts.inter(
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.0,
-                            color: const Color(0xFF555555),
-                          ),
-                        ),
-                      ),
-
-                      const Spacer(),
-
-                      // ==================================================
-                      // FUNCTIONAL BOOKMARK
-                      // ==================================================
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-
-                        onTapDown: (_) {
-                          _bookmarkDown();
-                        },
-
-                        onTapUp: (_) {
-                          _bookmarkUp();
-                          widget.onBookmark();
-                        },
-
-                        onTapCancel: () {
-                          _bookmarkUp();
-                        },
-
-                        child: AnimatedScale(
-                          scale: _bookmarkPressed ? 0.86 : 1.0,
-                          duration: const Duration(milliseconds: 130),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 220),
-                            curve: Curves.easeOutCubic,
-                            padding: const EdgeInsets.all(7),
-                            decoration: BoxDecoration(
-                              color: widget.bookmarked
-                                  ? const Color(0xFFEFEAFF)
-                                  : const Color(0xFFF5F5F2),
-                              shape: BoxShape.circle,
-                            ),
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 180),
-                              transitionBuilder: (child, animation) {
-                                return ScaleTransition(
-                                  scale: animation,
-                                  child: child,
-                                );
-                              },
-                              child: Icon(
-                                widget.bookmarked
-                                    ? Icons.bookmark_rounded
-                                    : Icons.bookmark_outline_rounded,
-                                key: ValueKey(widget.bookmarked),
-                                size: 19,
-                                color: widget.bookmarked
-                                    ? Colors.deepPurple
-                                    : const Color(0xFF888888),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // ========================================================
-                  // TITLE
-                  // ========================================================
-                  Text(
-                    widget.article.title,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.playfairDisplay(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      height: 1.2,
-                      color: const Color(0xFF111111),
-                    ),
-                  ),
-
-                  const SizedBox(height: 11),
-
-                  // ========================================================
-                  // DESCRIPTION
-                  // ========================================================
-                  Text(
-                    widget.article.description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      height: 1.6,
-                      color: const Color(0xFF666666),
-                    ),
-                  ),
-
-                  const SizedBox(height: 19),
-
-                  // ========================================================
-                  // AUTHOR + READ MORE
-                  // ========================================================
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // ----------------------------------------------------
-                      // AUTHOR AVATAR
-                      // ----------------------------------------------------
-                      Container(
-                        width: 29,
-                        height: 29,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFEBEBE6),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.person_rounded,
-                          size: 15,
-                          color: Color(0xFF888888),
-                        ),
-                      ),
-
-                      const SizedBox(width: 8),
-
-                      // ----------------------------------------------------
-                      // AUTHOR DETAILS
-                      // ----------------------------------------------------
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.article.author,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF555555),
-                              ),
-                            ),
-
-                            const SizedBox(height: 2),
-
-                            Text(
-                              widget.article.publishedAt,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(
-                                fontSize: 8.5,
-                                color: const Color(0xFF999999),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(width: 10),
-
-                      // ----------------------------------------------------
-                      // READ MORE BUTTON
-                      // ----------------------------------------------------
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-
-                        onTapDown: (_) {
-                          _readMoreDown();
-                        },
-
-                        onTapUp: (_) {
-                          _readMoreUp();
-                          widget.onReadMore();
-                        },
-
-                        onTapCancel: () {
-                          _readMoreUp();
-                        },
-
-                        child: AnimatedScale(
-                          scale: _readMorePressed ? 0.94 : 1.0,
-                          duration: const Duration(milliseconds: 130),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            curve: Curves.easeOutCubic,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 9,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _readMorePressed
-                                  ? const Color(0xFF2A2A2A)
-                                  : const Color(0xFF151515),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Read more',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.1,
-                                    color: Colors.white,
-                                  ),
-                                ),
-
-                                const SizedBox(width: 5),
-
-                                const Icon(
-                                  Icons.arrow_forward_rounded,
-                                  size: 13,
-                                  color: Colors.white,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// EMPTY STATE
-// ============================================================================
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 70, bottom: 120),
-      child: Column(
-        children: [
-          Container(
-            width: 76,
-            height: 76,
-            decoration: const BoxDecoration(
-              color: Color(0x0C000000),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.article_outlined,
-              color: Color(0xFF999999),
-              size: 32,
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          Text(
-            'No stories yet',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 27,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF222222),
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          Text(
-            'More stories will appear here soon.\n'
-            'Check back later.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              height: 1.5,
-              color: const Color(0xFF777777),
-            ),
-          ),
-        ],
       ),
     );
   }

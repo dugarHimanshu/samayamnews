@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'services/supabase_config.dart';
 import 'services/session_prefs.dart';
+import 'services/app_theme_state.dart';
 import 'screens/home/onboarding/welcome_screen.dart';
 import 'screens/main/main_shell.dart';
 import 'screens/editor/editor_dashboard_screen.dart';
@@ -17,6 +18,8 @@ void main() async {
     publishableKey: SupabaseConfig.publishableKey,
   );
 
+  await AppThemeState.instance.loadTheme();
+
   runApp(const ProviderScope(child: NewsApp()));
 }
 
@@ -27,19 +30,37 @@ class NewsApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'News App',
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF8F8F6),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF111111),
-          brightness: Brightness.light,
-        ),
-        textTheme: GoogleFonts.interTextTheme(),
-      ),
-      home: const AuthGate(),
+    return ListenableBuilder(
+      listenable: AppThemeState.instance,
+      builder: (context, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'News App',
+          themeMode: AppThemeState.instance.themeMode,
+          theme: ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.light,
+            scaffoldBackgroundColor: const Color(0xFFF8F8F6),
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF111111),
+              brightness: Brightness.light,
+            ),
+            textTheme: GoogleFonts.interTextTheme(),
+          ),
+          darkTheme: ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.dark,
+            scaffoldBackgroundColor: const Color(0xFF111216),
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFFE5A93B),
+              brightness: Brightness.dark,
+              surface: const Color(0xFF1A1C23),
+            ),
+            textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+          ),
+          home: const AuthGate(),
+        );
+      },
     );
   }
 }

@@ -27,6 +27,8 @@ dependencies:
   geolocator: ^13.0.0
   flutter_map: ^8.1.1
   latlong2: ^0.9.1
+  flutter_pdfview: ^1.4.5
+  path_provider: ^2.1.6
 
 dev_dependencies:
   flutter_test:
@@ -40,6 +42,7 @@ flutter:
     # - assets/public/images/watermark/app_logo.png
     - assets/public/images/watermark/watermark_top_right.png
     - assets/public/images/watermark/watermark_bottom_left.png
+    - assets/magazines/dummy.pdf
 
   # fonts:
   #   - family: Inter

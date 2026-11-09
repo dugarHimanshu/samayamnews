@@ -17,57 +17,50 @@ class GlassHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedPositioned(
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
-      top: visible ? 0 : -90,
-      left: 0,
-      right: 0,
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-          child: RepaintBoundary(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                child: Container(
-                  height: 64,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.82),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      width: 1,
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        child: RepaintBoundary(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Container(
+                height: 64,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.82),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.055),
+                      blurRadius: 18,
+                      offset: const Offset(0, 7),
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.055),
-                        blurRadius: 18,
-                        offset: const Offset(0, 7),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      // ------------------------------------------------
-                      // LEFT - HAMBURGER MENU
-                      // ------------------------------------------------
-                      _HeaderButton(icon: Icons.menu_rounded, onTap: onMenuTap),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    // ------------------------------------------------
+                    // LEFT - HAMBURGER MENU
+                    // ------------------------------------------------
+                    _HeaderButton(icon: Icons.menu_rounded, onTap: onMenuTap),
 
-                      // ------------------------------------------------
-                      // CENTER - LOGO
-                      // ------------------------------------------------
-                      const Expanded(child: Center(child: _HeaderLogo())),
+                    // ------------------------------------------------
+                    // CENTER - LOGO
+                    // ------------------------------------------------
+                    const Expanded(child: Center(child: _HeaderLogo())),
 
-                      // ------------------------------------------------
-                      // RIGHT - PROFILE AVATAR
-                      // ------------------------------------------------
-                      _ProfileHeaderButton(onTap: onProfileTap),
-                    ],
-                  ),
+                    // ------------------------------------------------
+                    // RIGHT - PROFILE AVATAR
+                    // ------------------------------------------------
+                    _ProfileHeaderButton(onTap: onProfileTap),
+                  ],
                 ),
               ),
             ),
