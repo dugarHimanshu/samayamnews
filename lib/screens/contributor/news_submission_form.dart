@@ -1,6 +1,6 @@
+import 'dart:typed_data';
 // screens/contributor/news_submission_form.dart
 
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -91,7 +91,8 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
 
   String? _selectedCategory;
 
-  File? _pickedImage;
+  XFile? _pickedImage;
+  Uint8List? _pickedBytes; // works on web and mobile (no dart:io File)
 
   String? _userRole;
 
@@ -301,18 +302,17 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
         return;
       }
 
-      final extension = picked.path.split('.').last.toLowerCase();
+      // On web, `path` is a blob URL, so take the extension from the file name.
+      final extension = picked.name.split('.').last.toLowerCase();
 
       if (!kAllowedImageExtensions.contains(extension)) {
         _showError('Please choose a JPG, JPEG, PNG, or WEBP image.');
         return;
       }
 
-      final file = File(picked.path);
+      final data = await picked.readAsBytes();
 
-      final bytes = await file.length();
-
-      final sizeInMb = bytes / (1024 * 1024);
+      final sizeInMb = data.length / (1024 * 1024);
 
       if (sizeInMb > kMaxImageSizeMb) {
         _showError(
@@ -327,7 +327,8 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
       if (!mounted) return;
 
       setState(() {
-        _pickedImage = file;
+        _pickedImage = picked;
+        _pickedBytes = data;
       });
     } catch (_) {
       _showError('We could not select that image. Please try again.');
@@ -337,6 +338,7 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
   void _removeImage() {
     setState(() {
       _pickedImage = null;
+      _pickedBytes = null;
     });
   }
 
@@ -427,7 +429,7 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
       String? coverMediaId;
 
       if (_pickedImage != null) {
-        coverMediaId = await _submissionService.uploadImage(_pickedImage!);
+        coverMediaId = await _submissionService.uploadImage(_pickedBytes!, fileName: _pickedImage!.name);
       }
 
       // LGD has no city level: region = mandal.
@@ -1680,7 +1682,7 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Image.file(_pickedImage!, fit: BoxFit.cover),
+        Image.memory(_pickedBytes!, fit: BoxFit.cover),
 
         Positioned(
           left: 12,

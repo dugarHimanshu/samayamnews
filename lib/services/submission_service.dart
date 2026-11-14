@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -24,9 +24,8 @@ class SubmissionService {
   /// Uploads an image straight to storage through a signed URL issued by the API,
   /// then asks the API to process it (resize to WebP, strip GPS/EXIF).
   /// Returns the media id to send as `coverMediaId`.
-  Future<String> uploadImage(File imageFile) async {
-    final bytes = await imageFile.readAsBytes();
-    final lower = imageFile.path.toLowerCase();
+  Future<String> uploadImage(Uint8List bytes, {required String fileName}) async {
+    final lower = fileName.toLowerCase();
     final contentType = lower.endsWith('.png')
         ? 'image/png'
         : lower.endsWith('.webp')
