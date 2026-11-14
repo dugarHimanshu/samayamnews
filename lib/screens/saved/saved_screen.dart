@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../data/demo_news.dart';
 import '../../models/news_article.dart';
 import '../../services/saved_news_store.dart';
 import '../home/news_story_page.dart';
@@ -62,7 +61,7 @@ class _SavedScreenState extends State<SavedScreen> {
   List<String> get _categories {
     final categories = <String>{
       'All',
-      ...demoNews.map((article) => article.category),
+      ..._store.savedArticles.map((article) => article.category).where((c) => c.isNotEmpty),
     };
 
     return categories.toList();
@@ -73,7 +72,7 @@ class _SavedScreenState extends State<SavedScreen> {
   // ============================================================
 
   List<NewsArticle> get _savedArticles {
-    final saved = demoNews.where((article) => _store.isSaved(article.title));
+    final saved = _store.savedArticles;
 
     if (_selectedCategory == 'All') {
       return saved.toList();
@@ -288,7 +287,7 @@ class _SavedScreenState extends State<SavedScreen> {
                       article: article,
                       onTap: () => _openStory(article),
                       onRemove: () async {
-                        await _store.remove(article.title);
+                        await _store.remove(article.id);
                       },
                     );
                   },

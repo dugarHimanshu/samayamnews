@@ -1,14 +1,24 @@
 class NewsArticle {
   final String id;
   final String title;
-  final String description;
-  final String category;
+  final String description; // short summary shown in cards
+  final String category; // display name (English)
   final String author;
   final String source;
-  final String publishedAt;
+  final String publishedAt; // dd/MM/yyyy for display
   final String imageUrl;
-  final String location;
-  final String content;
+  final String location; // "village • mandal • district • state"
+  final String content; // full body (empty in feed lists — load with NewsRepository.getArticle)
+
+  // API fields
+  final String categorySlug;
+  final int? districtId;
+  final String districtName;
+  final String stateName;
+  final String language;
+  final bool isBreaking;
+  final DateTime? publishedAtTime;
+  final String thumbUrl;
 
   const NewsArticle({
     required this.id,
@@ -21,84 +31,99 @@ class NewsArticle {
     required this.imageUrl,
     required this.location,
     required this.content,
+    this.categorySlug = '',
+    this.districtId,
+    this.districtName = '',
+    this.stateName = '',
+    this.language = 'en',
+    this.isBreaking = false,
+    this.publishedAtTime,
+    this.thumbUrl = '',
   });
 
-  // ============================================================
-  // SUPABASE -> MODEL
-  // ============================================================
-
-  factory NewsArticle.fromMap(Map<String, dynamic> map) {
-    final state = (map['state'] ?? '').toString().trim();
-
-    final district = (map['district'] ?? '').toString().trim();
-
-    final city = (map['city'] ?? '').toString().trim();
-
-    final region = (map['region'] ?? '').toString().trim();
-
-    final village = (map['village'] ?? '').toString().trim();
-
-    // Build a readable location string without requiring
-    // a dedicated location column in news_articles.
-    final locationParts = <String>[];
-
-    if (village.isNotEmpty) {
-      locationParts.add(village);
-    }
-
-    if (region.isNotEmpty) {
-      locationParts.add(region);
-    }
-
-    if (city.isNotEmpty) {
-      locationParts.add(city);
-    }
-
-    if (district.isNotEmpty) {
-      locationParts.add(district);
-    }
-
-    if (state.isNotEmpty) {
-      locationParts.add(state);
-    }
-
+  /// From the API's article DTO (/v1/feed, /v1/articles, /v1/articles/:id).
+  factory NewsArticle.fromApi(Map<String, dynamic> j) {
+    final loc = Map<String, dynamic>.from((j['location'] ?? const {}) as Map);
+    String name(String key) => (loc[key] is Map) ? (loc[key]['nameEn'] ?? '').toString() : '';
+    final parts = [name('village'), name('mandal'), name('district'), name('state')].where((p) => p.isNotEmpty);
+    final cat = (j['category'] is Map) ? Map<String, dynamic>.from(j['category'] as Map) : const <String, dynamic>{};
+    final image = (j['image'] is Map) ? Map<String, dynamic>.from(j['image'] as Map) : const <String, dynamic>{};
+    final published = DateTime.tryParse((j['publishedAt'] ?? '').toString())?.toLocal();
     return NewsArticle(
-      id: (map['id'] ?? '').toString(),
-      title: (map['title'] ?? '').toString(),
-      description: (map['description'] ?? '').toString(),
-      category: (map['category'] ?? '').toString(),
-      author: (map['author'] ?? '').toString(),
-      source: (map['source'] ?? '').toString(),
-      publishedAt: _formatPublishedAt(map['published_at']),
-      imageUrl: (map['image_url'] ?? '').toString(),
-      location: locationParts.join(' • '),
-      content: (map['content'] ?? '').toString(),
+      id: (j['id'] ?? '').toString(),
+      title: (j['title'] ?? '').toString(),
+      description: (j['summary'] ?? '').toString(),
+      category: (cat['nameEn'] ?? '').toString(),
+      author: (j['authorName'] ?? '').toString(),
+      source: (j['source'] ?? '').toString(),
+      publishedAt: published == null ? '' : _fmt(published),
+      imageUrl: (image['medium'] ?? image['large'] ?? '').toString(),
+      thumbUrl: (image['thumb'] ?? '').toString(),
+      location: parts.join(' • '),
+      content: (j['body'] ?? '').toString(),
+      categorySlug: (cat['slug'] ?? '').toString(),
+      districtId: (loc['district'] is Map) ? loc['district']['id'] as int? : null,
+      districtName: name('district'),
+      stateName: name('state'),
+      language: (j['language'] ?? 'en').toString(),
+      isBreaking: j['isBreaking'] == true,
+      publishedAtTime: published,
     );
   }
 
-  // ============================================================
-  // DATE FORMATTING
-  // ============================================================
+  /// Local cache format (saved articles survive offline / for guests).
+  Map<String, dynamic> toCacheJson() => {
+        'id': id,
+        'title': title,
+        'description': description,
+        'category': category,
+        'author': author,
+        'source': source,
+        'publishedAt': publishedAt,
+        'imageUrl': imageUrl,
+        'location': location,
+        'categorySlug': categorySlug,
+        'districtName': districtName,
+        'stateName': stateName,
+      };
 
-  static String _formatPublishedAt(dynamic value) {
-    if (value == null) {
-      return '';
-    }
+  factory NewsArticle.fromCacheJson(Map<String, dynamic> j) => NewsArticle(
+        id: (j['id'] ?? '').toString(),
+        title: (j['title'] ?? '').toString(),
+        description: (j['description'] ?? '').toString(),
+        category: (j['category'] ?? '').toString(),
+        author: (j['author'] ?? '').toString(),
+        source: (j['source'] ?? '').toString(),
+        publishedAt: (j['publishedAt'] ?? '').toString(),
+        imageUrl: (j['imageUrl'] ?? '').toString(),
+        location: (j['location'] ?? '').toString(),
+        content: '',
+        categorySlug: (j['categorySlug'] ?? '').toString(),
+        districtName: (j['districtName'] ?? '').toString(),
+        stateName: (j['stateName'] ?? '').toString(),
+      );
 
-    final raw = value.toString().trim();
+  NewsArticle withContent(String body) => NewsArticle(
+        id: id,
+        title: title,
+        description: description,
+        category: category,
+        author: author,
+        source: source,
+        publishedAt: publishedAt,
+        imageUrl: imageUrl,
+        location: location,
+        content: body,
+        categorySlug: categorySlug,
+        districtId: districtId,
+        districtName: districtName,
+        stateName: stateName,
+        language: language,
+        isBreaking: isBreaking,
+        publishedAtTime: publishedAtTime,
+        thumbUrl: thumbUrl,
+      );
 
-    if (raw.isEmpty) {
-      return '';
-    }
-
-    try {
-      final date = DateTime.parse(raw).toLocal();
-
-      return '${date.day.toString().padLeft(2, '0')}/'
-          '${date.month.toString().padLeft(2, '0')}/'
-          '${date.year}';
-    } catch (_) {
-      return raw;
-    }
-  }
+  static String _fmt(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 }

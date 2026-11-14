@@ -1,8 +1,11 @@
+import 'dart:async';
+
 // screens/editor/editor_review_screen.dart
 
 import 'package:flutter/material.dart';
 
 import '../../data/location_data.dart';
+import '../../services/location_repository.dart';
 import '../../models/news_submission.dart';
 import '../../services/editor_service.dart';
 import '../contributor/news_submission_form.dart'
@@ -75,6 +78,7 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
   @override
   void initState() {
     super.initState();
+    LocationRepository.instance.addListener(_onLocationsChanged);
 
     _animController = AnimationController(
       vsync: this,
@@ -109,115 +113,37 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
     _initializeLocationFromSubmission();
 
     _claim();
+
+    // Keep the review lock alive while the editor works (locks expire after 15 minutes of silence).
+    _heartbeat = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (widget.submission.id != null) _editorService.touchActivity(widget.submission.id!);
+    });
   }
+
+  Timer? _heartbeat;
 
   // ============================================================
   // LOCATION INITIALIZATION
   // ============================================================
 
   void _initializeLocationFromSubmission() {
-    /*
-     * Current NewsSubmission has:
-     *
-     * state
-     * district
-     * region
-     * village
-     *
-     * but does not yet have a dedicated city field.
-     *
-     * Therefore we try to interpret the existing `region`
-     * against the new local hierarchy.
-     *
-     * Priority:
-     *
-     * 1. Existing region matches a Mandal -> select Mandal.
-     * 2. Existing region matches a City -> select City.
-     * 3. Otherwise preserve it in the text controller so
-     *    existing data is not silently discarded.
-     */
-
+    // The API returns exact LGD names, so mandal/village map directly.
     final region = sSafe(widget.submission.region);
-
     final village = sSafe(widget.submission.village);
+    _mandal = region.isEmpty ? null : region;
+    _village = village.isEmpty ? null : village;
+    if (_mandal != null) _regionController.clear();
+    if (_village != null) _villageController.clear();
 
-    _village = null;
-
-    if (village.isNotEmpty && _state.isNotEmpty && _district.isNotEmpty) {
-      final possibleMandals = getMandalsForDistrict(_state, _district);
-
-      for (final mandalName in possibleMandals) {
-        final villages = getVillagesForLocation(
-          state: _state,
-          district: _district,
-          mandal: mandalName,
-        );
-
-        if (villages.contains(village)) {
-          _mandal = mandalName;
-          _village = village;
-          break;
-        }
-      }
+    // Preload the dropdown options for this district / mandal.
+    final repo = LocationRepository.instance;
+    final district = repo.district(_state, _district);
+    if (district != null) {
+      repo.loadChildren(district.id).then((_) {
+        final mandal = repo.mandal(_state, _district, _mandal);
+        if (mandal != null) repo.loadChildren(mandal.id);
+      });
     }
-
-    if (region.isEmpty) {
-      return;
-    }
-
-    final districtData = getLocationDistrict(_state, _district);
-
-    if (districtData == null) {
-      return;
-    }
-
-    // ----------------------------------------------------------
-    // Try City
-    // ----------------------------------------------------------
-
-    final cityMatch = districtData.cityByName(region);
-
-    if (cityMatch != null) {
-      _city = cityMatch.name;
-      _regionController.clear();
-
-      // If village was not resolved yet, try again within city.
-      if (_village == null) {
-        for (final mandal in cityMatch.mandals) {
-          if (mandal.villages.contains(village)) {
-            _mandal = mandal.name;
-            _village = village;
-            break;
-          }
-        }
-      }
-
-      return;
-    }
-
-    // ----------------------------------------------------------
-    // Try Mandal
-    // ----------------------------------------------------------
-
-    final mandalMatch = districtData.mandalByName(region);
-
-    if (mandalMatch != null) {
-      _mandal = mandalMatch.name;
-      _regionController.clear();
-
-      if (_village == null && mandalMatch.villages.contains(village)) {
-        _village = village;
-      }
-
-      return;
-    }
-
-    // ----------------------------------------------------------
-    // Unknown legacy region
-    // ----------------------------------------------------------
-    //
-    // Keep the existing value visible rather than losing it.
-    //
   }
 
   String sSafe(String? value) {
@@ -228,8 +154,15 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
   // DISPOSE
   // ============================================================
 
+  // Mandals/villages load on demand from the API; rebuild when they arrive.
+  void _onLocationsChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    LocationRepository.instance.removeListener(_onLocationsChanged);
+    _heartbeat?.cancel();
     _animController.dispose();
 
     _titleController.dispose();

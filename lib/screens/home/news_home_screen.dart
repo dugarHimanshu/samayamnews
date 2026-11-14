@@ -9,9 +9,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-import '../../data/demo_news.dart';
-import '../../data/demo_magazines.dart';
-import '../../data/demo_ads.dart';
+import 'dart:async';
+import '../../models/advertisement.dart';
+import '../../services/api_client.dart';
 import '../../models/magazine.dart';
 import '../../models/news_article.dart';
 import '../../services/news_service.dart';
@@ -751,18 +751,23 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
   final GlobalKey<BookPageFlipState> _flipKey = GlobalKey<BookPageFlipState>();
 
   final NewsService _newsService = NewsService.instance;
-  final SupabaseClient _supabase = Supabase.instance.client;
   final SavedNewsStore _savedStore = SavedNewsStore.instance;
   final MagazineStore _magazineStore = MagazineStore.instance;
 
-  List<NewsArticle> _articles = [];
-  final List<dynamic> _feedItems = []; // Contains NewsArticle, _AdSlot, or Magazine
+  // Feed items in display order, exactly as the server returns them:
+  // NewsArticle, AdvertisementItem or Magazine (ads/magazines are placed by the API).
+  final List<dynamic> _feedItems = [];
+  String? _nextCursor;
+  bool _loadingMore = false;
+  String? _latestId; // newest article id we have shown (for the "new stories" check)
+  bool _hasNewStories = false;
   bool _isLoading = true;
+  String? _error;
   int _currentPage = 0;
   bool _showHeader = true;
   double _lastPage = 0;
   final Set<String> _likedArticleIds = {};
-  RealtimeChannel? _channel;
+  Timer? _headTimer;
 
   @override
   void initState() {
@@ -771,7 +776,8 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
     _savedStore.load();
     _magazineStore.load();
     _loadNews();
-    _subscribe();
+    // Instead of a realtime DB connection per phone, check a tiny CDN-cached endpoint every minute.
+    _headTimer = Timer.periodic(const Duration(seconds: 60), (_) => _checkForNewStories());
   }
 
   // Reload news when state / district / language changes
@@ -785,141 +791,127 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
     }
   }
 
-  // Refresh quietly when the app comes back to the foreground
+  // Check for new stories when the app comes back to the foreground
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _refreshSilently();
+      _checkForNewStories();
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    if (_channel != null) {
-      _supabase.removeChannel(_channel!);
-    }
+    _headTimer?.cancel();
     super.dispose();
   }
 
-  // Listens to the Supabase table and refreshes when it changes
-  void _subscribe() {
-    if (_channel != null) return;
-    _channel = _supabase
-        .channel('news-feed')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'news_articles',
-          callback: (_) => _refreshSilently(),
-        )
-        .subscribe();
-  }
-
-  // Fetches news without showing a loading spinner
-  Future<void> _refreshSilently() async {
+  Future<void> _checkForNewStories() async {
+    if (_isLoading || !mounted) return;
     try {
-      final live = await _newsService.fetchNews(
+      final latest = await _newsService.latestId(
         state: widget.selectedState,
         district: widget.selectedDistrict,
       );
       if (!mounted) return;
-      setState(() {
-        _articles = _merge(live);
-        _buildFeedItems();
-      });
+      if (latest != null && _latestId != null && latest != _latestId) {
+        // Refresh in place only while the reader is on the first page; otherwise show a pill.
+        if (_currentPage == 0) {
+          await _loadNews(refresh: true);
+        } else {
+          setState(() => _hasNewStories = true);
+        }
+      }
     } catch (_) {}
   }
 
-  // Combines live news with demo news and removes duplicates
-  List<NewsArticle> _merge(List<NewsArticle> live) {
-    final res = <NewsArticle>[];
-    final ids = <String>{};
-    final titles = <String>{};
-    for (var a in [...live, ...demoNews]) {
-      final id = a.id.trim();
-      final title = a.title.trim().toLowerCase();
-      if ((id.isNotEmpty && ids.contains(id)) ||
-          (title.isNotEmpty && titles.contains(title))) {
-        continue;
-      }
-      if (id.isNotEmpty) ids.add(id);
-      if (title.isNotEmpty) titles.add(title);
-      res.add(a);
-    }
-    return res;
+  void _trackPage(int index) {
+    if (index < 0 || index >= _feedItems.length) return;
+    final item = _feedItems[index];
+    if (item is NewsArticle) Analytics.instance.track('view', item.id);
+    if (item is AdvertisementItem) Analytics.instance.track('ad_impression', item.id);
   }
 
-  // Intersperses news articles with ads strictly every 5 news articles
-  // and non-repeating unique magazines placed in between
-  void _buildFeedItems() {
-    _feedItems.clear();
-    if (_articles.isEmpty) return;
-
-    // Use shuffled pool of unique ads so none repeat until pool is exhausted
-    final adPool = List<AdvertisementItem>.from(demoAds)..shuffle(math.Random());
-    int adPoolIndex = 0;
-
-    // Use shuffled pool of unique magazines so none repeat
-    final magPool = List<Magazine>.from(demoMagazines)..shuffle(math.Random());
-    int magPoolIndex = 0;
-
-    int newsCountSinceAd = 0;
-
-    for (int i = 0; i < _articles.length; i++) {
-      _feedItems.add(_articles[i]);
-      newsCountSinceAd++;
-
-      // Optionally spawn a unique magazine between news (e.g. at article 2 or 3 of the 5-block)
-      // without disrupting the strict 5-news ad cycle
-      if (newsCountSinceAd == 3 && magPoolIndex < magPool.length) {
-        _feedItems.add(magPool[magPoolIndex]);
-        magPoolIndex++;
-      }
-
-      // STRICT RULE: An advertisement appears after every 5 news articles
-      if (newsCountSinceAd == 5) {
-        // Pick unique ad without repeating
-        final adToInsert = adPoolIndex < adPool.length
-            ? adPool[adPoolIndex++]
-            : demoAds[(i ~/ 5) % demoAds.length];
-        _feedItems.add(adToInsert);
-        newsCountSinceAd = 0;
-      }
+  // Loads the next page when the reader gets close to the end.
+  Future<void> _maybeLoadMore() async {
+    if (_loadingMore || _nextCursor == null || _currentPage < _feedItems.length - 4) return;
+    _loadingMore = true;
+    try {
+      final page = await _newsService.fetchFeed(
+        state: widget.selectedState,
+        district: widget.selectedDistrict,
+        cursor: _nextCursor,
+      );
+      if (!mounted) return;
+      setState(() {
+        _feedItems.addAll(page.items);
+        _nextCursor = page.nextCursor;
+      });
+    } catch (_) {
+    } finally {
+      _loadingMore = false;
     }
   }
 
-  // Loads news (with a spinner unless refresh = true)
+  // Loads the first page (with a spinner unless refresh = true)
   Future<void> _loadNews({bool refresh = false}) async {
     setState(() {
-      if (!refresh) {
-        _isLoading = true;
-      }
+      if (!refresh) _isLoading = true;
+      _error = null;
     });
 
     try {
-      final live = await _newsService.fetchNews(
+      final page = await _newsService.fetchFeed(
         state: widget.selectedState,
         district: widget.selectedDistrict,
       );
       if (!mounted) return;
       setState(() {
-        _articles = _merge(live);
-        _buildFeedItems();
+        _feedItems
+          ..clear()
+          ..addAll(page.items);
+        _nextCursor = page.nextCursor;
+        _latestId = page.articles.isEmpty ? null : page.articles.first.id;
+        _hasNewStories = false;
         _isLoading = false;
         _currentPage = 0;
         _lastPage = 0;
       });
+      _loadMyLikes(page.articles);
       // Go back to the first page after reloading
       _flipKey.currentState?.jumpToPage(0);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
-        _articles = _merge([]);
-        _buildFeedItems();
+        _error = e is ApiException ? e.message : 'We could not load the latest news.';
         _isLoading = false;
       });
     }
+  }
+
+  bool get _signedIn => Supabase.instance.client.auth.currentSession != null;
+
+  // Liked flags for signed-in readers (the feed itself is shared & cached, so per-user state is separate).
+  Future<void> _loadMyLikes(List<NewsArticle> articles) async {
+    if (!_signedIn || articles.isEmpty) return;
+    try {
+      final res = await ApiClient.instance.get('/me/state', query: {'ids': articles.map((a) => a.id).join(',')}) as Map;
+      if (!mounted) return;
+      setState(() => _likedArticleIds.addAll((res['liked'] as List).map((e) => e.toString())));
+    } catch (_) {}
+  }
+
+  Future<void> _toggleLike(String articleId) async {
+    final nowLiked = !_likedArticleIds.contains(articleId);
+    setState(() => nowLiked ? _likedArticleIds.add(articleId) : _likedArticleIds.remove(articleId));
+    if (!_signedIn) return;
+    try {
+      if (nowLiked) {
+        await ApiClient.instance.put('/me/likes/$articleId');
+      } else {
+        await ApiClient.instance.delete('/me/likes/$articleId');
+      }
+    } catch (_) {}
   }
 
   // Called every frame while flipping, with the live page position.
@@ -973,19 +965,13 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
       key: ValueKey(articleKey),
       article: article,
       liked: _likedArticleIds.contains(articleKey),
-      bookmarked: _savedStore.isSaved(article.title),
+      bookmarked: _savedStore.isSaved(article.id),
       onLike: () {
         HapticFeedback.lightImpact();
-        setState(() {
-          if (_likedArticleIds.contains(articleKey)) {
-            _likedArticleIds.remove(articleKey);
-          } else {
-            _likedArticleIds.add(articleKey);
-          }
-        });
+        _toggleLike(articleKey);
       },
       onBookmark: () async {
-        await _savedStore.toggle(article.title);
+        await _savedStore.toggle(article);
         setState(() {});
       },
       selectedLanguage: widget.selectedLanguage,
@@ -1005,14 +991,28 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
       );
     }
 
-    // Empty state with a refresh button
-    if (_articles.isEmpty) {
+    // Error / empty state with a refresh button
+    if (_feedItems.isEmpty) {
       return Container(
         color: const Color(0xFFF8F8F6),
         child: Center(
-          child: OutlinedButton(
-            onPressed: () => _loadNews(refresh: true),
-            child: const Text('REFRESH'),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _error ?? 'No stories yet.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(fontSize: 14, color: Colors.black54),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton(
+                  onPressed: () => _loadNews(),
+                  child: const Text('REFRESH'),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -1033,7 +1033,11 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
               itemCount: total,
               itemBuilder: _buildPage,
               onPageScroll: _onScroll,
-              onPageChanged: (i) => setState(() => _currentPage = i),
+              onPageChanged: (i) {
+                setState(() => _currentPage = i);
+                _trackPage(i);
+                _maybeLoadMore();
+              },
             ),
           ),
 
@@ -1059,6 +1063,22 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
               ),
             ),
           ),
+
+          // "New stories" pill when fresh news arrived while the reader was deep in the feed
+          if (_hasNewStories)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 110,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: ActionChip(
+                  avatar: const Icon(Icons.arrow_upward_rounded, size: 16, color: Colors.white),
+                  label: Text('New stories', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700)),
+                  backgroundColor: Colors.black87,
+                  onPressed: () => _loadNews(refresh: true),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -1115,9 +1135,8 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
   void _initContent() {
     _title = widget.article.title;
     _desc = widget.article.description;
-    _body = widget.article.content.isNotEmpty
-        ? widget.article.content
-        : widget.article.description;
+    // Feed items carry only the summary (shown above); the full story opens on tap.
+    _body = widget.article.content;
   }
 
   // Re-initialise when the article or language changes
@@ -1142,9 +1161,7 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
       final translatedMap = await ArticleTranslator.translateArticle(
         title: widget.article.title,
         description: widget.article.description,
-        body: widget.article.content.isNotEmpty
-            ? widget.article.content
-            : widget.article.description,
+        body: widget.article.content,
         targetLanguage: target,
       );
 
@@ -1504,13 +1521,13 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
 // ============================================================
 
 class _AdPage extends StatelessWidget {
-  final AdvertisementItem? ad;
+  final AdvertisementItem ad;
 
-  const _AdPage({this.ad});
+  const _AdPage({required this.ad});
 
   @override
   Widget build(BuildContext context) {
-    final currentAd = ad ?? demoAds[0];
+    final currentAd = ad;
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Container(
@@ -1628,6 +1645,7 @@ class _AdPage extends StatelessWidget {
                             ),
                             onPressed: () {
                               HapticFeedback.lightImpact();
+                              Analytics.instance.track('ad_click', currentAd.id);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text('Opening ${currentAd.sponsor}...'),

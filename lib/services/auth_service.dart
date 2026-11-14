@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'api_client.dart';
+
 class AuthService {
   AuthService._();
 
@@ -17,96 +19,31 @@ class AuthService {
   bool get isLoggedIn => currentUser != null;
 
   // ============================================================
-  // GET CURRENT USER ROLE
+  // CURRENT USER PROFILE / ROLE (from the API, which reads app.profiles)
   // ============================================================
 
-  Future<String?> getCurrentUserRole() async {
+  Map<String, dynamic>? _profile;
+  String? _profileUserId;
+
+  Future<Map<String, dynamic>?> getCurrentUserProfile({bool refresh = false}) async {
     final user = currentUser;
-
-    if (user == null) {
-      debugPrint('AUTH ROLE: No logged-in user');
-      return null;
-    }
-
+    if (user == null) return null;
+    if (!refresh && _profile != null && _profileUserId == user.id) return _profile;
     try {
-      final response = await _client
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      debugPrint('======================================');
-      debugPrint('AUTH ROLE CHECK');
-      debugPrint('USER ID: ${user.id}');
-      debugPrint('EMAIL: ${user.email}');
-      debugPrint('PROFILE: $response');
-      debugPrint('======================================');
-
-      if (response == null) {
-        debugPrint('AUTH ROLE ERROR: Profile not found');
-        return null;
-      }
-
-      final rawRole = response['role'];
-
-      if (rawRole == null) {
-        debugPrint('AUTH ROLE ERROR: Role is null');
-        return null;
-      }
-
-      final role = rawRole.toString().trim().toLowerCase();
-
-      debugPrint('AUTH ROLE: $role');
-
-      return role;
-    } on PostgrestException catch (e) {
-      debugPrint('======================================');
-      debugPrint('PROFILE QUERY ERROR');
-      debugPrint('MESSAGE: ${e.message}');
-      debugPrint('CODE: ${e.code}');
-      debugPrint('DETAILS: ${e.details}');
-      debugPrint('HINT: ${e.hint}');
-      debugPrint('======================================');
-
+      final res = await ApiClient.instance.get('/me');
+      _profile = Map<String, dynamic>.from(res as Map);
+      _profileUserId = user.id;
+      return _profile;
+    } on ApiException catch (e) {
+      debugPrint('PROFILE LOAD ERROR: ${e.code} ${e.message}');
       throw Exception('Could not load your account profile: ${e.message}');
-    } catch (e) {
-      debugPrint('======================================');
-      debugPrint('PROFILE UNKNOWN ERROR');
-      debugPrint('$e');
-      debugPrint('======================================');
-
-      throw Exception('Could not load your account profile.');
     }
   }
 
-  // ============================================================
-  // GET CURRENT USER PROFILE
-  // ============================================================
-
-  Future<Map<String, dynamic>?> getCurrentUserProfile() async {
-    final user = currentUser;
-
-    if (user == null) {
-      return null;
-    }
-
-    try {
-      final response = await _client
-          .from('profiles')
-          .select()
-          .eq('id', user.id)
-          .maybeSingle();
-
-      return response;
-    } on PostgrestException catch (e) {
-      debugPrint('PROFILE LOAD ERROR: ${e.message}');
-
-      throw Exception('Could not load your account profile: ${e.message}');
-    } catch (e) {
-      debugPrint('PROFILE LOAD UNKNOWN ERROR: $e');
-
-      throw Exception('Could not load your account profile.');
-    }
+  /// reader / freelancer / employee / editor / admin (null when signed out).
+  Future<String?> getCurrentUserRole() async {
+    final profile = await getCurrentUserProfile(refresh: true);
+    return profile?['role']?.toString().trim().toLowerCase();
   }
 
   // ============================================================
@@ -207,6 +144,8 @@ class AuthService {
   // ============================================================
 
   Future<void> signOut() async {
+    _profile = null;
+    _profileUserId = null;
     try {
       await _client.auth.signOut();
       debugPrint('USER SIGNED OUT');

@@ -1,26 +1,31 @@
-// Mirrors the news_submissions table in Supabase.
-// Used both when building a submission to send up, and when
-// reading back a user's own past submissions.
+/// A story submitted by a reporter, as returned by the API
+/// (/v1/me/submissions, /v1/editor/queue).
 class NewsSubmission {
-  final String? id; // null until Supabase assigns one on insert
+  final String? id; // null until the API creates it
   final String submitterId;
   final String title;
-  final String description;
-  final String category;
+  final String description; // summary
+  final String category; // display name (English)
   final String author;
   final String source;
-  final String content;
-  final String? imageUrl;
+  final String content; // body
+  final String? imageUrl; // processed cover image (medium) for display
+  final String? coverMediaId; // uploaded image id sent with a new submission
 
-  // structured location instead of one free text field
-  final String state; // 'Telangana' or 'Andhra Pradesh' only
+  // Location by display name (English, LGD)
+  final String state;
   final String district;
   final String? region; // mandal
   final String? village;
 
-  final String status; // pending / in_review / approved / rejected / published
-  final DateTime?
-  submittedAt; // set automatically by Supabase, never user-entered
+  final String status; // pending / in_review / published / rejected
+  final DateTime? submittedAt;
+
+  // API-only fields
+  final int version;
+  final String? rejectionReason;
+  final bool claimedByMe;
+  final String? claimedByName;
 
   const NewsSubmission({
     this.id,
@@ -32,55 +37,46 @@ class NewsSubmission {
     required this.source,
     required this.content,
     this.imageUrl,
+    this.coverMediaId,
     required this.state,
     required this.district,
     this.region,
     this.village,
     this.status = 'pending',
     this.submittedAt,
+    this.version = 1,
+    this.rejectionReason,
+    this.claimedByMe = false,
+    this.claimedByName,
   });
 
-  // Converts this object into a map ready to insert into Supabase.
-  // We deliberately leave out id/status/submittedAt — the database
-  // fills those in itself (defaults + trigger), so the user never
-  // sees or controls them from the app.
-  Map<String, dynamic> toInsertMap() {
-    return {
-      'submitter_id': submitterId,
-      'title': title,
-      'description': description,
-      'category': category,
-      'author': author,
-      'source': source,
-      'content': content,
-      'image_url': imageUrl,
-      'state': state,
-      'district': district,
-      'region': region,
-      'village': village,
-    };
-  }
-
-  // Converts a row coming back from Supabase into this object.
-  factory NewsSubmission.fromMap(Map<String, dynamic> map) {
+  factory NewsSubmission.fromApi(Map<String, dynamic> j) {
+    final loc = Map<String, dynamic>.from((j['location'] ?? const {}) as Map);
+    String? name(String key) => (loc[key] is Map) ? loc[key]['nameEn']?.toString() : null;
+    final cat = (j['category'] is Map) ? Map<String, dynamic>.from(j['category'] as Map) : const <String, dynamic>{};
+    final cover = (j['coverImage'] is Map) ? Map<String, dynamic>.from(j['coverImage'] as Map) : const <String, dynamic>{};
+    final claim = (j['claim'] is Map) ? Map<String, dynamic>.from(j['claim'] as Map) : null;
     return NewsSubmission(
-      id: map['id'] as String?,
-      submitterId: map['submitter_id'] as String,
-      title: map['title'] as String,
-      description: map['description'] as String,
-      category: map['category'] as String,
-      author: map['author'] as String,
-      source: map['source'] as String,
-      content: map['content'] as String,
-      imageUrl: map['image_url'] as String?,
-      state: map['state'] as String,
-      district: map['district'] as String,
-      region: map['region'] as String?,
-      village: map['village'] as String?,
-      status: map['status'] as String,
-      submittedAt: map['submitted_at'] != null
-          ? DateTime.parse(map['submitted_at'] as String)
-          : null,
+      id: j['id']?.toString(),
+      submitterId: (j['submitterId'] ?? '').toString(),
+      title: (j['title'] ?? '').toString(),
+      description: (j['summary'] ?? '').toString(),
+      category: (cat['nameEn'] ?? '').toString(),
+      author: (j['authorName'] ?? '').toString(),
+      source: (j['source'] ?? '').toString(),
+      content: (j['body'] ?? '').toString(),
+      imageUrl: cover['medium']?.toString(),
+      coverMediaId: j['coverMediaId']?.toString(),
+      state: name('state') ?? '',
+      district: name('district') ?? '',
+      region: name('mandal'),
+      village: name('village'),
+      status: (j['status'] ?? 'pending').toString(),
+      submittedAt: DateTime.tryParse((j['createdAt'] ?? '').toString())?.toLocal(),
+      version: (j['version'] as int?) ?? 1,
+      rejectionReason: j['rejectionReason']?.toString(),
+      claimedByMe: claim?['byMe'] == true,
+      claimedByName: claim?['editorName']?.toString(),
     );
   }
 }

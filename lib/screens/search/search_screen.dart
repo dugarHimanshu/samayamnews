@@ -2,7 +2,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../data/demo_news.dart';
+import 'dart:async';
+
+import '../../services/category_repository.dart';
+import '../../services/news_service.dart';
 import '../../models/news_article.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -46,16 +49,35 @@ class _SearchScreenState extends State<SearchScreen>
     'India',
   ];
 
+  final NewsRepository _repo = NewsRepository.instance;
+  Timer? _debounce;
+
+  void _onRepoChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
+    _repo.addListener(_onRepoChanged);
+    _repo.refreshLatest();
+    CategoryRepository.instance.init();
     _searchController.addListener(() {
       _queryNotifier.value = _searchController.text;
+      // Ask the server too (full-text search incl. Telugu); results merge into the repository.
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(milliseconds: 400), () => _repo.search(_searchController.text));
+    });
+    _filterNotifier.addListener(() {
+      final f = _filterNotifier.value;
+      if (f != 'All') _repo.loadCategory(CategoryRepository.instance.slugFor(f));
     });
   }
 
   @override
   void dispose() {
+    _repo.removeListener(_onRepoChanged);
+    _debounce?.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
     _queryNotifier.dispose();
@@ -70,14 +92,16 @@ class _SearchScreenState extends State<SearchScreen>
 
     if (q.isEmpty && f == 'all') return [];
 
-    return demoNews.where((article) {
+    final slug = CategoryRepository.instance.slugFor(f);
+    return _repo.articles.where((article) {
       final matchesQuery =
           q.isEmpty ||
           article.title.toLowerCase().contains(q) ||
           article.description.toLowerCase().contains(q) ||
-          article.author.toLowerCase().contains(q);
+          article.author.toLowerCase().contains(q) ||
+          article.location.toLowerCase().contains(q);
 
-      final matchesFilter = f == 'all' || article.category.toLowerCase() == f;
+      final matchesFilter = f == 'all' || article.categorySlug == slug;
 
       return matchesQuery && matchesFilter;
     }).toList();

@@ -7,6 +7,7 @@ import { invalidate } from '../lib/cache.js'
 import { decodeCursor, encodeCursor } from '../lib/cursor.js'
 import { badRequest, conflict, forbidden, notFound, tooMany } from '../lib/errors.js'
 import { categoryIndex, locationIndex } from './reference.js'
+import { mediaUrl } from './storage.js'
 import { enqueue, QUEUES } from './jobs.js'
 
 export const FREELANCER_DAILY_LIMIT = Number(process.env.FREELANCER_DAILY_LIMIT ?? 10)
@@ -58,6 +59,39 @@ async function assertOwnImage(mediaId: string | null | undefined, user: AuthUser
   const m = (await db.select().from(media).where(eq(media.id, mediaId)).limit(1))[0]
   if (!m || m.kind !== 'image') throw badRequest('Unknown image')
   if (m.ownerId !== user.id && !['editor', 'admin'].includes(user.role)) throw forbidden('That image belongs to someone else')
+}
+
+
+// ------------------------------------------------------------------ display enrichment
+
+type SubmissionRow = typeof submissions.$inferSelect
+
+/** Adds location names, category and cover image URLs so clients can render a submission without extra lookups. */
+async function enrich<T extends SubmissionRow>(rows: T[]) {
+  const [locs, cats] = await Promise.all([locationIndex(), categoryIndex()])
+  const mediaIds = rows.map((r) => r.coverMediaId).filter((x): x is string => !!x)
+  const mediaRows = mediaIds.length
+    ? await db.select({ id: media.id, variants: media.variants, status: media.status }).from(media).where(inArray(media.id, mediaIds))
+    : []
+  const mediaById = new Map(mediaRows.map((m) => [m.id, m]))
+  const loc = (id: number | null) => {
+    const l = id ? locs.get(id) : undefined
+    return l ? { id: l.id, nameEn: l.nameEn, nameTe: l.nameTe } : null
+  }
+  return rows.map((r) => {
+    const m = r.coverMediaId ? mediaById.get(r.coverMediaId) : undefined
+    const c = cats.get(r.categoryId)
+    return {
+      ...r,
+      category: c ? { id: c.id, slug: c.slug, nameEn: c.nameEn, nameTe: c.nameTe } : null,
+      location: { state: loc(r.stateId), district: loc(r.districtId), mandal: loc(r.mandalId), village: loc(r.villageId) },
+      coverImage:
+        m && m.status === 'ready' && m.variants
+          ? { thumb: mediaUrl(m.variants['320']), medium: mediaUrl(m.variants['640']), large: mediaUrl(m.variants['1080']) }
+          : null,
+      coverImageStatus: m?.status ?? null,
+    }
+  })
 }
 
 // ------------------------------------------------------------------ contributor side
@@ -114,8 +148,9 @@ export async function mySubmissions(user: AuthUser, params: { cursor?: string; l
   const slice = rows.slice(0, params.limit)
   const reasons = await rejectionReasons(slice.filter((s) => s.status === 'rejected').map((s) => s.id))
   const last = slice.at(-1)
+  const enriched = await enrich(slice)
   return {
-    items: slice.map((s) => submissionForSubmitter(s, reasons.get(s.id))),
+    items: enriched.map((s) => submissionForSubmitter(s, reasons.get(s.id))),
     nextCursor: rows.length > params.limit && last ? encodeCursor({ t: last.createdAt.toISOString(), i: last.id }) : null,
   }
 }
@@ -124,7 +159,8 @@ export async function mySubmission(user: AuthUser, id: string) {
   const s = (await db.select().from(submissions).where(eq(submissions.id, id)).limit(1))[0]
   if (!s || s.submitterId !== user.id) throw notFound('Submission not found')
   const reasons = await rejectionReasons(s.status === 'rejected' ? [s.id] : [])
-  return submissionForSubmitter(s, reasons.get(s.id))
+  const [enriched] = await enrich([s])
+  return submissionForSubmitter(enriched!, reasons.get(s.id))
 }
 
 async function rejectionReasons(ids: string[]) {
@@ -140,7 +176,7 @@ async function rejectionReasons(ids: string[]) {
 }
 
 /** What a submitter sees: never the identity of the editor handling it. */
-function submissionForSubmitter(s: typeof submissions.$inferSelect, rejectionReason?: string) {
+function submissionForSubmitter<T extends SubmissionRow>(s: T, rejectionReason?: string) {
   const { claimedBy: _c, claimExpiresAt: _e, ...rest } = s
   return {
     ...rest,
@@ -170,8 +206,10 @@ export async function editorQueue(user: AuthUser, params: { cursor?: string; lim
   const now = Date.now()
   const slice = rows.slice(0, params.limit)
   const last = slice.at(-1)
+  const enriched = await enrich(slice.map((r) => r.s))
   return {
-    items: slice.map(({ s, claimer }) => {
+    items: slice.map(({ claimer }, idx) => {
+      const s = enriched[idx]!
       const claimActive = !!s.claimedBy && !!s.claimExpiresAt && s.claimExpiresAt.getTime() > now
       return {
         ...s,
@@ -195,7 +233,8 @@ export async function editorSubmission(id: string) {
     .leftJoin(profiles, eq(profiles.id, submissionEvents.actorId))
     .where(eq(submissionEvents.submissionId, id))
     .orderBy(asc(submissionEvents.createdAt))
-  return { ...s, events }
+  const [enriched] = await enrich([s])
+  return { ...enriched!, events }
 }
 
 /** Atomic claim: succeeds only if nobody else holds an unexpired claim. */

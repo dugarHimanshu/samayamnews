@@ -1,212 +1,101 @@
 // lib/data/location_data.dart
+//
+// Location helpers used by the screens. The data now comes from the API
+// (official LGD codes for Telangana and Andhra Pradesh) through
+// LocationRepository; these functions keep the old name-based interface.
+//
+// Mandals/villages load on demand: the first call for a district returns an
+// empty list and triggers a fetch — listen to LocationRepository.instance to
+// rebuild when the data arrives.
 
-import 'andhra_pradesh_location_data.dart';
-import 'telangana_location_data.dart';
+import '../services/location_repository.dart';
 
 class LocationMandal {
   final String name;
   final List<String> villages;
 
-  const LocationMandal({
-    required this.name,
-    this.villages = const [],
-  });
+  const LocationMandal({required this.name, this.villages = const []});
 }
 
 class LocationCity {
   final String name;
   final List<LocationMandal> mandals;
 
-  const LocationCity({
-    required this.name,
-    this.mandals = const [],
-  });
+  const LocationCity({required this.name, this.mandals = const []});
 }
 
 class LocationDistrict {
   final String name;
-  final List<LocationCity> cities;
-  final List<LocationMandal> mandals;
+  final int? id;
 
-  const LocationDistrict({
-    required this.name,
-    this.cities = const [],
-    this.mandals = const [],
-  });
+  const LocationDistrict({required this.name, this.id});
 
-  /// Mandals that are directly attached to the district.
-  ///
-  /// In some areas, a city/municipality is useful as another
-  /// user-facing selection layer. In other areas, the user can
-  /// go directly from District -> Mandal.
-  List<String> get mandalNames {
-    final values = <String>{};
+  // LGD has no separate "city" level between district and mandal.
+  List<LocationCity> get cities => const [];
+  List<String> get cityNames => const [];
+  LocationCity? cityByName(String name) => null;
 
-    for (final mandal in mandals) {
-      values.add(mandal.name);
-    }
+  List<LocationMandal> get mandals => LocationRepository.instance
+      .childrenOf(id)
+      .map((m) => LocationMandal(
+            name: m.nameEn,
+            villages: LocationRepository.instance.childrenOf(m.id).map((v) => v.nameEn).toList(),
+          ))
+      .toList();
 
-    for (final city in cities) {
-      for (final mandal in city.mandals) {
-        values.add(mandal.name);
-      }
-    }
-
-    final result = values.toList()..sort();
-    return result;
-  }
-
-  List<String> get cityNames {
-    final result = cities.map((city) => city.name).toList()
-      ..sort();
-
-    return result;
-  }
-
-  LocationCity? cityByName(String name) {
-    for (final city in cities) {
-      if (city.name == name) {
-        return city;
-      }
-    }
-
-    return null;
-  }
+  List<String> get mandalNames => LocationRepository.instance.childrenOf(id).map((m) => m.nameEn).toList();
 
   LocationMandal? mandalByName(String name) {
-    for (final mandal in mandals) {
-      if (mandal.name == name) {
-        return mandal;
-      }
+    for (final m in mandals) {
+      if (m.name == name) return m;
     }
-
-    for (final city in cities) {
-      for (final mandal in city.mandals) {
-        if (mandal.name == name) {
-          return mandal;
-        }
-      }
-    }
-
     return null;
   }
 }
 
 class LocationState {
   final String name;
-  final List<LocationDistrict> districts;
+  final int? id;
 
-  const LocationState({
-    required this.name,
-    required this.districts,
-  });
+  const LocationState({required this.name, this.id});
 
-  List<String> get districtNames {
-    final result =
-        districts.map((district) => district.name).toList()
-          ..sort();
+  List<LocationDistrict> get districts => LocationRepository.instance
+      .childrenOf(id)
+      .map((d) => LocationDistrict(name: d.nameEn, id: d.id))
+      .toList();
 
-    return result;
-  }
+  List<String> get districtNames => LocationRepository.instance.childrenOf(id).map((d) => d.nameEn).toList();
 
   LocationDistrict? districtByName(String name) {
-    for (final district in districts) {
-      if (district.name == name) {
-        return district;
-      }
-    }
-
-    return null;
+    final d = LocationRepository.instance.district(this.name, name);
+    return d == null ? null : LocationDistrict(name: d.nameEn, id: d.id);
   }
 }
 
-// ============================================================
-// ALL SUPPORTED APP LOCATIONS
-// ============================================================
-
-const List<LocationState> appLocationStates = [
-  telanganaLocationState,
-  andhraPradeshLocationState,
-];
-
-// ============================================================
-// STATE HELPERS
-// ============================================================
+List<LocationState> get appLocationStates {
+  final states = LocationRepository.instance.states;
+  if (states.isEmpty) {
+    return const [LocationState(name: 'Telangana'), LocationState(name: 'Andhra Pradesh')];
+  }
+  // Telangana first, matching the previous ordering.
+  final sorted = [...states]..sort((a, b) => a.nameEn == 'Telangana' ? -1 : (b.nameEn == 'Telangana' ? 1 : 0));
+  return sorted.map((s) => LocationState(name: s.nameEn, id: s.id)).toList();
+}
 
 LocationState? getLocationState(String stateName) {
-  for (final state in appLocationStates) {
-    if (state.name == stateName) {
-      return state;
-    }
-  }
-
-  return null;
+  final s = LocationRepository.instance.state(stateName);
+  return s == null ? null : LocationState(name: s.nameEn, id: s.id);
 }
 
-LocationDistrict? getLocationDistrict(
-  String stateName,
-  String districtName,
-) {
-  final state = getLocationState(stateName);
+LocationDistrict? getLocationDistrict(String stateName, String districtName) =>
+    getLocationState(stateName)?.districtByName(districtName);
 
-  if (state == null) {
-    return null;
-  }
+List<String> getDistrictsForState(String stateName) => getLocationState(stateName)?.districtNames ?? const [];
 
-  return state.districtByName(districtName);
-}
+List<String> getCitiesForDistrict(String stateName, String districtName) => const [];
 
-List<String> getDistrictsForState(
-  String stateName,
-) {
-  return getLocationState(stateName)?.districtNames ??
-      const [];
-}
-
-List<String> getCitiesForDistrict(
-  String stateName,
-  String districtName,
-) {
-  final district =
-      getLocationDistrict(
-    stateName,
-    districtName,
-  );
-
-  return district?.cityNames ?? const [];
-}
-
-List<String> getMandalsForDistrict(
-  String stateName,
-  String districtName, {
-  String? city,
-}) {
-  final district =
-      getLocationDistrict(
-    stateName,
-    districtName,
-  );
-
-  if (district == null) {
-    return const [];
-  }
-
-  if (city != null && city.isNotEmpty) {
-    final selectedCity =
-        district.cityByName(city);
-
-    if (selectedCity == null) {
-      return const [];
-    }
-
-    return selectedCity.mandals
-        .map((mandal) => mandal.name)
-        .toList()
-      ..sort();
-  }
-
-  return district.mandalNames;
-}
+List<String> getMandalsForDistrict(String stateName, String districtName, {String? city}) =>
+    getLocationDistrict(stateName, districtName)?.mandalNames ?? const [];
 
 List<String> getVillagesForLocation({
   required String state,
@@ -214,45 +103,6 @@ List<String> getVillagesForLocation({
   String? city,
   required String mandal,
 }) {
-  final districtData =
-      getLocationDistrict(
-    state,
-    district,
-  );
-
-  if (districtData == null) {
-    return const [];
-  }
-
-  LocationMandal? selectedMandal;
-
-  if (city != null && city.isNotEmpty) {
-    final selectedCity =
-        districtData.cityByName(city);
-
-    if (selectedCity == null) {
-      return const [];
-    }
-
-    for (final item in selectedCity.mandals) {
-      if (item.name == mandal) {
-        selectedMandal = item;
-        break;
-      }
-    }
-  } else {
-    selectedMandal =
-        districtData.mandalByName(mandal);
-  }
-
-  if (selectedMandal == null) {
-    return const [];
-  }
-
-  final result =
-      List<String>.from(
-    selectedMandal.villages,
-  )..sort();
-
-  return result;
+  final m = LocationRepository.instance.mandal(state, district, mandal);
+  return LocationRepository.instance.childrenOf(m?.id).map((v) => v.nameEn).toList();
 }

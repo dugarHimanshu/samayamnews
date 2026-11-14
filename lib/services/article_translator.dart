@@ -899,12 +899,12 @@ class ArticleTranslator {
       final results = await Future.wait([
         _translator.translate(title, to: code),
         _translator.translate(description, to: code),
-        _translator.translate(body, to: code),
+        body.trim().isEmpty ? Future.value(null) : _translator.translate(body, to: code),
       ]);
 
-      var translatedTitle = results[0].text;
-      var translatedDescription = results[1].text;
-      var translatedBody = results[2].text;
+      var translatedTitle = results[0]!.text;
+      var translatedDescription = results[1]!.text;
+      var translatedBody = results[2]?.text ?? body;
 
       if (isHinglish) {
         translatedTitle = toHinglish(translatedTitle);

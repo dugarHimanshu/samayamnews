@@ -4,7 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 
-import '../../data/demo_news.dart';
+import '../../services/news_service.dart';
 import '../../models/news_article.dart';
 import '../../widgets/home/news_card.dart';
 import '../../services/location_service.dart';
@@ -34,23 +34,28 @@ class _LocationScreenState extends State<LocationScreen> {
 
   late final MapController _mapController;
 
+  final NewsRepository _repo = NewsRepository.instance;
+
+  void _onRepoChanged() {
+    if (mounted) setState(() {});
+  }
+
+  bool _same(String a, String b) => a.trim().toLowerCase() == b.trim().toLowerCase();
+
+  // Stories from the reader's district; falls back to the whole state.
   List<NewsArticle> get _localArticles {
-    final byDistrict = demoNews
-        .where((article) => article.location == widget.selectedDistrict)
-        .toList();
-
-    if (byDistrict.isNotEmpty) {
-      return byDistrict;
-    }
-
-    return demoNews
-        .where((article) => article.location == widget.selectedState)
-        .toList();
+    final byDistrict = _repo.articles.where((a) => _same(a.districtName, widget.selectedDistrict)).toList();
+    if (byDistrict.isNotEmpty) return byDistrict;
+    return _repo.articles.where((a) => _same(a.stateName, widget.selectedState)).toList();
   }
 
   @override
   void initState() {
     super.initState();
+    _repo.addListener(_onRepoChanged);
+    final districtId = NewsService.instance.districtIdFor(widget.selectedState, widget.selectedDistrict);
+    if (districtId != null) _repo.loadDistrict(districtId);
+    _repo.refreshLatest();
 
     _mapController = MapController();
 
@@ -59,6 +64,7 @@ class _LocationScreenState extends State<LocationScreen> {
 
   @override
   void dispose() {
+    _repo.removeListener(_onRepoChanged);
     _mapController.dispose();
     super.dispose();
   }

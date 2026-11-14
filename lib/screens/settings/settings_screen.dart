@@ -4,6 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/location_data.dart';
+import '../../services/location_repository.dart';
+import '../../services/api_client.dart';
+import '../../services/saved_news_store.dart';
 import '../../services/app_strings.dart';
 import '../../services/auth_service.dart';
 import '../../services/session_prefs.dart';
@@ -39,9 +42,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _dataSaver = false;
   bool _isDeleting = false;
 
+  // Mandals/villages load on demand from the API; rebuild when they arrive.
+  void _onLocationsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    LocationRepository.instance.removeListener(_onLocationsChanged);
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
+    LocationRepository.instance.addListener(_onLocationsChanged);
     _language = widget.selectedLanguage;
     _state = widget.selectedState;
     _district = widget.selectedDistrict;
@@ -276,27 +291,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     HapticFeedback.heavyImpact();
 
     try {
-      final supabaseClient = Supabase.instance.client;
-      final user = supabaseClient.auth.currentUser;
-      if (user != null) {
-        // Remove from profiles table if exists
-        try {
-          await supabaseClient
-              .from('profiles')
-              .delete()
-              .eq('id', user.id);
-        } catch (_) {}
-
-        // Remove user's news submissions if exists
-        try {
-          await supabaseClient
-              .from('news_submissions')
-              .delete()
-              .eq('author_id', user.id);
-        } catch (_) {}
+      // The API marks the account deleted and removes personal data in the background.
+      if (Supabase.instance.client.auth.currentUser != null) {
+        await ApiClient.instance.delete('/me');
       }
 
       // Clear local storage and sign out
+      await SavedNewsStore.instance.clear();
       await SessionPrefs.clear();
       await AuthService.instance.signOut();
 

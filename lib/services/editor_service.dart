@@ -1,56 +1,41 @@
 // services/editor_service.dart
+//
+// Editor workflow through the API. Method names and the field maps the screens
+// pass in are unchanged; they're translated to the API's shape here.
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/news_article.dart';
 import '../models/news_submission.dart';
+import 'api_client.dart';
+import 'auth_service.dart';
+import 'category_repository.dart';
+import 'location_repository.dart';
+import 'news_service.dart';
+import 'submission_service.dart';
 
 class EditorService {
-  final SupabaseClient _client = Supabase.instance.client;
+  final ApiClient _api = ApiClient.instance;
 
-  // ============================================================
-  // CURRENT USER SESSION
-  // ============================================================
+  // Latest version per submission (optimistic locking) and the claim info from the last queue load.
+  static final Map<String, int> _versions = {};
+  static final Map<String, NewsSubmission> _lastQueue = {};
 
   String get _editorId {
-    final user = _client.auth.currentUser;
-
-    if (user == null) {
-      throw Exception('Authentication required. Please sign in again.');
-    }
-
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) throw Exception('Authentication required. Please sign in again.');
     return user.id;
   }
 
-  // ============================================================
-  // ROLE VERIFICATION
-  // ============================================================
-
   Future<String?> getCurrentRole() async {
-    final user = _client.auth.currentUser;
-
-    if (user == null) {
-      return null;
-    }
-
     try {
-      final response = await _client
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      if (response == null) {
-        return null;
-      }
-
-      final role = response['role'];
-
-      return role?.toString().trim().toLowerCase();
+      return await AuthService.instance.getCurrentUserRole();
     } catch (_) {
       return null;
     }
   }
+
+  Exception _wrap(ApiException e) => Exception(e.message);
 
   // ============================================================
   // SUBMISSION QUEUE
@@ -58,344 +43,198 @@ class EditorService {
 
   Future<List<NewsSubmission>> fetchQueue() async {
     try {
-      final response = await _client
-          .from('news_submissions')
-          .select()
-          .inFilter('status', ['pending', 'in_review'])
-          .order('submitted_at', ascending: true);
-
-      return (response as List)
-          .map((row) => NewsSubmission.fromMap(row as Map<String, dynamic>))
-          .toList();
-    } on PostgrestException catch (e) {
-      throw Exception('Database error loading queue: ${e.message}');
-    } catch (_) {
-      throw Exception('Unable to load the submission queue.');
+      final out = <NewsSubmission>[];
+      String? cursor;
+      do {
+        final res = await _api.get('/editor/queue', query: {'limit': 50, 'cursor': cursor}) as Map;
+        out.addAll((res['items'] as List).map((e) => NewsSubmission.fromApi(Map<String, dynamic>.from(e as Map))));
+        cursor = res['nextCursor'] as String?;
+      } while (cursor != null && out.length < 500);
+      _lastQueue
+        ..clear()
+        ..addEntries(out.where((s) => s.id != null).map((s) => MapEntry(s.id!, s)));
+      for (final s in out) {
+        if (s.id != null) _versions[s.id!] = s.version;
+      }
+      return out;
+    } on ApiException catch (e) {
+      throw _wrap(e);
     }
   }
 
-  // ============================================================
-  // REVIEWS & LIVE AUDITS
-  // ============================================================
-
-  Future<List<Map<String, dynamic>>> fetchReviewsFor(
-    List<String> submissionIds,
-  ) async {
-    if (submissionIds.isEmpty) {
-      return [];
-    }
-
-    try {
-      final response = await _client
-          .from('submission_reviews')
-          .select('submission_id, editor_id, status, profiles(full_name)')
-          .inFilter('submission_id', submissionIds);
-
-      return List<Map<String, dynamic>>.from(response as List);
-    } on PostgrestException catch (e) {
-      throw Exception('Database error fetching reviews: ${e.message}');
-    } catch (_) {
-      throw Exception('Unable to load review information.');
-    }
+  /// Active review locks in the shape the dashboard expects. Built from the claim info
+  /// returned with the queue (no extra request).
+  Future<List<Map<String, dynamic>>> fetchReviewsFor(List<String> submissionIds) async {
+    final me = _editorId;
+    return [
+      for (final id in submissionIds)
+        if (_lastQueue[id]?.claimedByName != null || _lastQueue[id]?.claimedByMe == true)
+          {
+            'submission_id': id,
+            'editor_id': _lastQueue[id]!.claimedByMe ? me : 'other',
+            'status': 'active',
+            'profiles': {'full_name': _lastQueue[id]!.claimedByName},
+          },
+    ];
   }
-
-  // ============================================================
-  // DASHBOARD ANALYTICS & STATS
-  // ============================================================
 
   Future<Map<String, int>> fetchStats() async {
     try {
-      final today = DateTime.now().toIso8601String().substring(0, 10);
-
-      final newCount = await _client
-          .from('news_submissions')
-          .select('id')
-          .eq('status', 'pending')
-          .count(CountOption.exact);
-
-      final inReviewCount = await _client
-          .from('news_submissions')
-          .select('id')
-          .eq('status', 'in_review')
-          .count(CountOption.exact);
-
-      final approvedToday = await _client
-          .from('news_submissions')
-          .select('id')
-          .eq('status', 'published')
-          .gte('updated_at', today)
-          .count(CountOption.exact);
-
-      final rejectedToday = await _client
-          .from('news_submissions')
-          .select('id')
-          .eq('status', 'rejected')
-          .gte('updated_at', today)
-          .count(CountOption.exact);
-
+      final res = await _api.get('/editor/stats') as Map;
       return {
-        'new': newCount.count,
-        'in_review': inReviewCount.count,
-        'approved_today': approvedToday.count,
-        'rejected_today': rejectedToday.count,
+        'new': (res['pending'] as int?) ?? 0,
+        'in_review': (res['in_review'] as int?) ?? 0,
+        'approved_today': (res['published_today'] as int?) ?? 0,
+        'rejected_today': (res['rejected_today'] as int?) ?? 0,
       };
-    } on PostgrestException catch (e) {
-      throw Exception('Database error loading stats: ${e.message}');
-    } catch (_) {
-      throw Exception('Unable to load editor statistics.');
+    } on ApiException catch (e) {
+      throw _wrap(e);
     }
   }
 
   // ============================================================
-  // CLAIM SUBMISSION LOCK
+  // CLAIM / HEARTBEAT
   // ============================================================
 
   Future<void> claimSubmission(String submissionId) async {
     try {
-      final existing = await _client
-          .from('submission_reviews')
-          .select('id')
-          .eq('submission_id', submissionId)
-          .eq('editor_id', _editorId)
-          .eq('status', 'active')
-          .maybeSingle();
-
-      if (existing == null) {
-        await _client.from('submission_reviews').insert({
-          'submission_id': submissionId,
-          'editor_id': _editorId,
-          'status': 'active',
-        });
-      }
-
-      await _client
-          .from('news_submissions')
-          .update({'status': 'in_review'})
-          .eq('id', submissionId);
-    } on PostgrestException catch (e) {
-      throw Exception(
-        'Permission or database error claiming story: ${e.message}',
-      );
-    } catch (_) {
-      throw Exception('Unable to open this story for review.');
+      final res = await _api.post('/editor/submissions/$submissionId/claim') as Map;
+      _versions[submissionId] = (res['version'] as int?) ?? 1;
+    } on ApiException catch (e) {
+      throw _wrap(e);
     }
   }
 
-  // ============================================================
-  // TOUCH REVIEW ACTIVITY HEARTBEAT
-  // ============================================================
-
   Future<void> touchActivity(String submissionId) async {
     try {
-      await _client
-          .from('submission_reviews')
-          .update({'last_activity_at': DateTime.now().toIso8601String()})
-          .eq('submission_id', submissionId)
-          .eq('editor_id', _editorId)
-          .eq('status', 'active');
+      await _api.post('/editor/submissions/$submissionId/heartbeat');
     } catch (_) {
       // Non-blocking heartbeat failure
     }
   }
 
-  // ============================================================
-  // SAVE SUBMISSION DRAFT (LIVE UPDATE)
-  // ============================================================
-
-  Future<void> saveDraft(
-    String submissionId,
-    Map<String, dynamic> edits,
-  ) async {
+  Future<void> releaseSubmission(String submissionId) async {
     try {
-      final response = await _client
-          .from('news_submissions')
-          .update(edits)
-          .eq('id', submissionId)
-          .select('id')
-          .maybeSingle();
-
-      if (response == null) {
-        throw Exception('Draft record could not be found or updated.');
-      }
-
-      await touchActivity(submissionId);
-    } on PostgrestException catch (e) {
-      throw Exception('Database error saving draft: ${e.message}');
-    } catch (e) {
-      if (e is Exception) rethrow;
-      throw Exception('We could not save the draft.');
-    }
+      await _api.post('/editor/submissions/$submissionId/release');
+    } catch (_) {}
   }
 
   // ============================================================
-  // PUBLISH SUBMISSION (MOVE TO LIVE FEED)
+  // DRAFT / PUBLISH / REJECT
   // ============================================================
 
-  Future<void> publishSubmission(
-    String submissionId,
-    Map<String, dynamic> finalFields,
-  ) async {
+  Future<void> saveDraft(String submissionId, Map<String, dynamic> edits) async {
     try {
-      final submissionResponse = await _client
-          .from('news_submissions')
-          .update({...finalFields, 'status': 'published'})
-          .eq('id', submissionId)
-          .select('id')
-          .maybeSingle();
+      final res = await _api.patch('/editor/submissions/$submissionId', {
+        'version': _versions[submissionId] ?? 1,
+        'edits': await storyEditsFromFields(edits),
+      }) as Map;
+      _versions[submissionId] = (res['version'] as int?) ?? (_versions[submissionId] ?? 1) + 1;
+    } on ApiException catch (e) {
+      throw _wrap(e);
+    }
+  }
 
-      if (submissionResponse == null) {
-        throw Exception('Submission target not found for publication.');
-      }
-
-      await _client.from('news_articles').insert({
-        'submission_id': submissionId,
-        'title': finalFields['title'],
-        'description': finalFields['description'],
-        'category': finalFields['category'],
-        'author': finalFields['author'],
-        'source': finalFields['source'],
-        'content': finalFields['content'],
-        'image_url': finalFields['image_url'],
-        'state': finalFields['state'],
-        'district': finalFields['district'],
-        'region': finalFields['region'],
-        'village': finalFields['village'],
+  Future<void> publishSubmission(String submissionId, Map<String, dynamic> finalFields) async {
+    try {
+      await _api.post('/editor/submissions/$submissionId/publish', {
+        'version': _versions[submissionId] ?? 1,
+        'isBreaking': finalFields['is_breaking'] == true,
+        'edits': await storyEditsFromFields(finalFields),
       });
-
-      await _client
-          .from('submission_reviews')
-          .update({
-            'status': 'completed',
-            'completed_at': DateTime.now().toIso8601String(),
-          })
-          .eq('submission_id', submissionId)
-          .eq('editor_id', _editorId)
-          .eq('status', 'active');
-    } on PostgrestException catch (e) {
-      throw Exception(
-        'Database restriction prevented publishing: ${e.message}',
-      );
-    } catch (e) {
-      if (e is Exception) rethrow;
-      throw Exception('We could not publish this story.');
+      _versions.remove(submissionId);
+    } on ApiException catch (e) {
+      throw _wrap(e);
     }
   }
-
-  // ============================================================
-  // REJECT SUBMISSION WITH FEEDBACK
-  // ============================================================
 
   Future<void> rejectSubmission(String submissionId, String reason) async {
     try {
-      final submissionResponse = await _client
-          .from('news_submissions')
-          .update({'status': 'rejected'})
-          .eq('id', submissionId)
-          .select('id')
-          .maybeSingle();
-
-      if (submissionResponse == null) {
-        throw Exception('Submission target not found for rejection.');
-      }
-
-      await _client.from('submission_feedback').insert({
-        'submission_id': submissionId,
-        'editor_id': _editorId,
-        'reason': reason,
-      });
-
-      await _client
-          .from('submission_reviews')
-          .update({
-            'status': 'completed',
-            'completed_at': DateTime.now().toIso8601String(),
-          })
-          .eq('submission_id', submissionId)
-          .eq('editor_id', _editorId)
-          .eq('status', 'active');
-    } on PostgrestException catch (e) {
-      throw Exception('Database restriction prevented rejection: ${e.message}');
-    } catch (e) {
-      if (e is Exception) rethrow;
-      throw Exception('We could not reject this story.');
+      await _api.post('/editor/submissions/$submissionId/reject', {'reason': reason});
+      _versions.remove(submissionId);
+    } on ApiException catch (e) {
+      throw _wrap(e);
     }
   }
 
   // ============================================================
-  // FETCH PUBLISHED NEWS FEED
+  // PUBLISHED ARTICLES
   // ============================================================
 
   Future<List<NewsArticle>> fetchPublishedNews() async {
     try {
-      final response = await _client
-          .from('news_articles')
-          .select()
-          .order('published_at', ascending: false);
-
-      final rows = List<Map<String, dynamic>>.from(response as List);
-
-      return rows.map((row) => NewsArticle.fromMap(row)).toList();
-    } on PostgrestException catch (e) {
-      throw Exception('Database error fetching live news: ${e.message}');
-    } catch (_) {
-      throw Exception('Unable to load published news.');
+      final res = await _api.get('/articles', query: {'limit': 50}) as Map;
+      return (res['items'] as List).map((e) => NewsArticle.fromApi(Map<String, dynamic>.from(e as Map))).toList();
+    } on ApiException catch (e) {
+      throw _wrap(e);
     }
   }
 
-  // ============================================================
-  // UPDATE PUBLISHED NEWS ARTICLE
-  // ============================================================
-
-  Future<void> updatePublishedNews(
-    String articleId,
-    Map<String, dynamic> updates,
-  ) async {
-    _editorId; // Authenticate user presence
-
+  /// Full article (with body) for the edit screen.
+  Future<NewsArticle?> fetchArticle(String articleId) async {
     try {
-      final response = await _client
-          .from('news_articles')
-          .update(updates)
-          .eq('id', articleId)
-          .select('id')
-          .maybeSingle();
-
-      if (response == null) {
-        throw Exception('Published article not found or update blocked.');
-      }
-    } on PostgrestException catch (e) {
-      throw Exception('RLS Policy or database restriction error: ${e.message}');
-    } catch (e) {
-      if (e is Exception) rethrow;
-      throw Exception('Unable to update published news.');
+      final res = await _api.get('/editor/articles/$articleId') as Map;
+      return NewsArticle.fromApi(Map<String, dynamic>.from(res));
+    } on ApiException catch (e) {
+      throw _wrap(e);
     }
   }
 
-  // ============================================================
-  // DELETE PUBLISHED NEWS ARTICLE
-  // ============================================================
+  Future<void> updatePublishedNews(String articleId, Map<String, dynamic> updates) async {
+    try {
+      await _api.patch('/editor/articles/$articleId', await storyEditsFromFields(updates));
+      NewsRepository.instance.refreshLatest();
+    } on ApiException catch (e) {
+      throw _wrap(e);
+    }
+  }
 
+  /// "Delete" unpublishes (soft delete) so it can be restored and the audit trail is kept.
   Future<void> deletePublishedNews(String articleId) async {
-    _editorId; // Authenticate user presence
-
     try {
-      final response = await _client
-          .from('news_articles')
-          .delete()
-          .eq('id', articleId)
-          .select('id')
-          .maybeSingle();
-
-      if (response == null) {
-        throw Exception('Published article not found or delete blocked.');
-      }
-    } on PostgrestException catch (e) {
-      throw Exception(
-        'RLS Policy or foreign key constraint error: ${e.message}',
-      );
-    } catch (e) {
-      if (e is Exception) rethrow;
-      throw Exception('Unable to delete published news.');
+      await _api.post('/editor/articles/$articleId/unpublish');
+    } on ApiException catch (e) {
+      throw _wrap(e);
     }
+  }
+
+  /// Converts the screens' field map (title/description/content/category/state/district/region/village…)
+  /// into the API's story fields with ids. Only keys present in [fields] are sent.
+  static Future<Map<String, dynamic>> storyEditsFromFields(Map<String, dynamic> fields) async {
+    final out = <String, dynamic>{};
+    String? str(String k) {
+      final v = fields[k]?.toString().trim();
+      return (v == null || v.isEmpty) ? null : v;
+    }
+
+    if (str('title') != null) out['title'] = str('title');
+    if (str('description') != null) out['summary'] = str('description');
+    if (str('content') != null) {
+      out['body'] = str('content');
+      out['language'] = SubmissionService.detectLanguage('${str('title') ?? ''} ${str('content')}');
+    }
+    if (str('author') != null) out['authorName'] = str('author');
+    if (fields.containsKey('source')) out['source'] = str('source');
+    if (str('category') != null) {
+      await CategoryRepository.instance.init();
+      final c = CategoryRepository.instance.byName(str('category'));
+      if (c != null) out['categoryId'] = c.id;
+    }
+    if (str('state') != null && str('district') != null) {
+      final loc = LocationRepository.instance;
+      final state = loc.state(str('state'));
+      final district = loc.district(str('state'), str('district'));
+      if (state != null && district != null) {
+        await loc.loadChildren(district.id);
+        final mandal = loc.mandal(str('state'), str('district'), str('region'));
+        if (mandal != null) await loc.loadChildren(mandal.id);
+        final village = loc.village(str('state'), str('district'), str('region'), str('village'));
+        out['stateId'] = state.id;
+        out['districtId'] = district.id;
+        out['mandalId'] = mandal?.id;
+        out['villageId'] = village?.id;
+      }
+    }
+    return out;
   }
 }

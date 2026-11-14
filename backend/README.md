@@ -65,3 +65,18 @@ nothing repeats. Ads (every 5 articles) and magazines are mixed in by the server
 `render.yaml` deploys the API (with jobs in-process) from the `backend/` folder. Set `DATABASE_URL`,
 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `CORS_ORIGINS` in the Render dashboard, pointing at a
 Supabase project. The free plan sleeps when idle — open the app a minute before a demo.
+
+## Running the Flutter app against this API
+
+The app talks to Supabase only for sign-in; everything else goes to `API_BASE_URL`. Point it at the
+local stack with `--dart-define`s (the anon/publishable key is printed by `npx supabase status`):
+
+```bash
+flutter run \
+  --dart-define=API_BASE_URL=http://localhost:4000 \
+  --dart-define=SUPABASE_URL=http://127.0.0.1:54321 \
+  --dart-define=SUPABASE_PUBLISHABLE_KEY=<local anon key>
+```
+
+On the Android emulator use `http://10.0.2.2:4000` / `http://10.0.2.2:54321` instead of localhost.
+For a web build, add its origin (e.g. `http://localhost:3000`) to `CORS_ORIGINS` in `.env`.

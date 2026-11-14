@@ -6,6 +6,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'services/supabase_config.dart';
 import 'services/session_prefs.dart';
 import 'services/app_theme_state.dart';
+import 'services/auth_service.dart';
+import 'services/category_repository.dart';
+import 'services/location_repository.dart';
+import 'screens/admin/admin_dashboard_screen.dart';
 import 'screens/home/onboarding/welcome_screen.dart';
 import 'screens/main/main_shell.dart';
 import 'screens/editor/editor_dashboard_screen.dart';
@@ -19,6 +23,12 @@ void main() async {
   );
 
   await AppThemeState.instance.loadTheme();
+
+  // Reference data from the API (states/districts, categories). Non-fatal: screens retry on demand.
+  await Future.wait([
+    LocationRepository.instance.init().catchError((Object e) => debugPrint('Locations not loaded: $e')),
+    CategoryRepository.instance.init().catchError((Object e) => debugPrint('Categories not loaded: $e')),
+  ]);
 
   runApp(const ProviderScope(child: NewsApp()));
 }
@@ -91,14 +101,17 @@ class _AuthGateState extends State<AuthGate> {
       return const WelcomeScreen();
     }
 
-    // Check if the logged-in user is an editor (e.g., via user_metadata or profiles table)
-    final user = session.user;
-    final role = user.userMetadata?['role'] ?? user.appMetadata['role'];
-    
-    // Alternatively, fetch from your profiles table if role is stored there:
-    // final profile = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-    // final isEditor = profile?['role'] == 'editor';
+    // Role comes from the API (app.profiles), never from editable user metadata.
+    String? role;
+    try {
+      role = await AuthService.instance.getCurrentUserRole();
+    } catch (_) {
+      role = null; // offline or API down: fall through to the reader flow
+    }
 
+    if (role == 'admin') {
+      return const AdminDashboardScreen();
+    }
     if (role == 'editor') {
       return const EditorDashboardScreen();
     }

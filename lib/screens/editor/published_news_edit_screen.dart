@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/location_data.dart';
+import '../../services/location_repository.dart';
 import '../../models/news_article.dart';
 import '../../services/editor_service.dart';
 import '../contributor/news_submission_form.dart'
@@ -58,6 +59,7 @@ class _PublishedNewsEditScreenState extends State<PublishedNewsEditScreen> {
   @override
   void initState() {
     super.initState();
+    LocationRepository.instance.addListener(_onLocationsChanged);
 
     final article = widget.article;
 
@@ -69,6 +71,14 @@ class _PublishedNewsEditScreenState extends State<PublishedNewsEditScreen> {
 
     _category = article.category;
     _initializeLocation(article.location);
+
+    // List items carry only the summary; load the full body for editing.
+    if (article.content.isEmpty && article.id.isNotEmpty) {
+      _editorService.fetchArticle(article.id).then((full) {
+        if (!mounted || full == null) return;
+        setState(() => _contentController.text = full.content);
+      }).catchError((_) {});
+    }
   }
 
   void _initializeLocation(String location) {
@@ -103,8 +113,14 @@ class _PublishedNewsEditScreenState extends State<PublishedNewsEditScreen> {
     }
   }
 
+  // Mandals/villages load on demand from the API; rebuild when they arrive.
+  void _onLocationsChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    LocationRepository.instance.removeListener(_onLocationsChanged);
     _titleController.dispose();
     _descriptionController.dispose();
     _contentController.dispose();

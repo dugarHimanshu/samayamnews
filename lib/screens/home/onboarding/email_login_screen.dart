@@ -168,7 +168,7 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
       // NORMAL READER / CONTRIBUTOR
       // ==========================================================
 
-      if (role == 'freelancer' || role == 'employee') {
+      if (role == 'reader' || role == 'freelancer' || role == 'employee') {
         _clearCredentials();
 
         Navigator.pushReplacement(

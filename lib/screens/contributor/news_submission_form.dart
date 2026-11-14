@@ -7,6 +7,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../data/location_data.dart';
+import '../../services/location_repository.dart';
+import '../../services/category_repository.dart';
 import '../../models/news_submission.dart';
 import '../../services/submission_service.dart';
 import 'my_submissions_screen.dart';
@@ -15,7 +17,8 @@ import 'my_submissions_screen.dart';
 // CONFIGURATION
 // ============================================================
 
-const List<String> kNewsCategories = [
+// Categories come from the API (/v1/categories); the fixed list is only a fallback if it's unreachable.
+const List<String> _fallbackCategories = [
   'Politics',
   'Local',
   'National',
@@ -29,6 +32,11 @@ const List<String> kNewsCategories = [
   'Crime',
   'Other',
 ];
+
+List<String> get kNewsCategories {
+  final fromApi = CategoryRepository.instance.items.map((c) => c.nameEn).toList();
+  return fromApi.isNotEmpty ? fromApi : _fallbackCategories;
+}
 
 const List<String> kAllowedStates = ['Telangana', 'Andhra Pradesh'];
 
@@ -99,6 +107,7 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
   @override
   void initState() {
     super.initState();
+    LocationRepository.instance.addListener(_onLocationsChanged);
 
     _loadRoleAndUsage();
 
@@ -107,8 +116,14 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
     _contentController.addListener(_refresh);
   }
 
+  // Mandals/villages load on demand from the API; rebuild when they arrive.
+  void _onLocationsChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    LocationRepository.instance.removeListener(_onLocationsChanged);
     _titleController.removeListener(_refresh);
     _descriptionController.removeListener(_refresh);
     _contentController.removeListener(_refresh);
@@ -408,27 +423,14 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
     });
 
     try {
-      String? imageUrl;
+      // Upload goes straight to storage via a signed URL; we get back a media id.
+      String? coverMediaId;
 
       if (_pickedImage != null) {
-        imageUrl = await _submissionService.uploadImage(_pickedImage!);
+        coverMediaId = await _submissionService.uploadImage(_pickedImage!);
       }
 
-      // --------------------------------------------------------
-      // CURRENT MODEL COMPATIBILITY
-      // --------------------------------------------------------
-      //
-      // NewsSubmission currently has `region` and `village`
-      // fields, but not a dedicated `city` field.
-      //
-      // Therefore:
-      // - Mandal is saved to region when selected.
-      // - If no Mandal is selected but City is selected,
-      //   City is saved to region.
-      //
-      // This keeps the currently existing model working
-      // without modifying SubmissionService or NewsSubmission.
-      //
+      // LGD has no city level: region = mandal.
       final regionValue = _selectedMandal ?? _selectedCity;
 
       final submission = NewsSubmission(
@@ -439,7 +441,7 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
         author: _authorController.text.trim(),
         source: _sourceController.text.trim(),
         content: _contentController.text.trim(),
-        imageUrl: imageUrl,
+        coverMediaId: coverMediaId,
         state: _selectedState!,
         district: _selectedDistrict!,
         region: regionValue,

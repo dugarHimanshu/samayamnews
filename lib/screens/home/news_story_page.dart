@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:translator/translator.dart';
 
 import '../../models/news_article.dart';
+import '../../services/news_service.dart';
 
 class NewsStoryPage extends StatefulWidget {
   final NewsArticle article;
@@ -56,6 +57,25 @@ class _NewsStoryPageState extends State<NewsStoryPage> {
     _translatedDescription = _originalDescription;
     _translatedBody = _originalBody;
 
+    Analytics.instance.track('view', widget.article.id);
+
+    // Feed items carry only the summary; fetch the full story.
+    if (widget.article.content.isEmpty && widget.article.id.isNotEmpty) {
+      _loadFullArticle();
+    } else if (_currentLanguage != 'English') {
+      _translateContent(_currentLanguage);
+    }
+  }
+
+  Future<void> _loadFullArticle() async {
+    final full = await NewsRepository.instance.getArticle(widget.article.id);
+    if (!mounted) return;
+    if (full != null && full.content.isNotEmpty) {
+      setState(() {
+        _originalBody = full.content;
+        _translatedBody = full.content;
+      });
+    }
     if (_currentLanguage != 'English') {
       _translateContent(_currentLanguage);
     }

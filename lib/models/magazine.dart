@@ -35,6 +35,23 @@ class Magazine {
     );
   }
 
+  /// From the API's magazine DTO (/v1/magazines).
+  factory Magazine.fromApi(Map<String, dynamic> j) {
+    final published = DateTime.tryParse((j['publishedAt'] ?? '').toString())?.toLocal();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return Magazine(
+      id: (j['id'] ?? '').toString(),
+      title: (j['title'] ?? '').toString(),
+      subtitle: (j['subtitle'] ?? '').toString(),
+      issue: (j['issue'] ?? '').toString(),
+      coverImageUrl: (j['coverUrl'] ?? '').toString(),
+      pdfUrl: (j['pdfUrl'] ?? '').toString(),
+      date: published == null ? '' : '${published.day.toString().padLeft(2, '0')} ${months[published.month - 1]} ${published.year}',
+      pageCount: (j['pageCount'] as int?) ?? 0,
+      category: ((j['category'] ?? 'Special Edition').toString()).replaceFirst(RegExp(r'^Demo:\s*'), ''),
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,

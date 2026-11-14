@@ -1,14 +1,20 @@
-// Holds your Supabase project's connection details.
-// The "publishable key" is safe to ship in the app — it's the same
-// idea as a public API key. It only works alongside your RLS
-// policies (Step 2), which is what actually keeps data safe.
+// Supabase is used by the app ONLY for sign-in (and uploading files to signed
+// URLs issued by our API). All data goes through the Samayam API.
 //
-// IMPORTANT: If this repo is ever public, don't worry about this
-// file being visible — RLS protects the data regardless. What you
-// must NEVER put in the client app is your Supabase "service role"
-// key — that one bypasses RLS completely and belongs only on a
-// secure server, never in Flutter code.
+// Override per environment at build time, e.g. for the local stack:
+//   flutter run --dart-define=SUPABASE_URL=http://127.0.0.1:54321 \
+//               --dart-define=SUPABASE_PUBLISHABLE_KEY=<local anon key> \
+//               --dart-define=API_BASE_URL=http://127.0.0.1:4000
+//
+// The publishable key is safe to ship: the database grants it no access to app
+// data. Never put the service-role key in the app.
 class SupabaseConfig {
-  static const String url = 'https://wtzoszozevnljfhiykpj.supabase.co';
-  static const String publishableKey = 'sb_publishable_l7pEwFOoHevpBenKzzOldA_Ze31pNuN';
+  static const String url = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://wtzoszozevnljfhiykpj.supabase.co',
+  );
+  static const String publishableKey = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+    defaultValue: 'sb_publishable_l7pEwFOoHevpBenKzzOldA_Ze31pNuN',
+  );
 }

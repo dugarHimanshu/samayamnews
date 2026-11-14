@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../data/demo_news.dart';
+import '../../services/category_repository.dart';
+import '../../services/news_service.dart';
 import '../../models/news_article.dart';
 import '../../services/saved_news_store.dart';
 import '../home/news_story_page.dart';
@@ -114,18 +115,33 @@ class _CategoryScreenState extends State<CategoryScreen> {
     ),
   ];
 
+  final NewsRepository _repo = NewsRepository.instance;
+  final Set<String> _requested = {};
+
+  void _onRepoChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
     _savedStore.load();
+    _repo.addListener(_onRepoChanged);
+    CategoryRepository.instance.init();
+  }
+
+  @override
+  void dispose() {
+    _repo.removeListener(_onRepoChanged);
+    super.dispose();
   }
 
   Future<void> _toggleBookmark(NewsArticle article) async {
-    await _savedStore.toggle(article.title);
+    await _savedStore.toggle(article);
     if (!mounted) return;
     setState(() {});
 
-    final bool saved = _savedStore.isSaved(article.title);
+    final bool saved = _savedStore.isSaved(article.id);
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -185,10 +201,9 @@ class _CategoryScreenState extends State<CategoryScreen> {
   }
 
   List<NewsArticle> _getArticlesForCategory(String categoryKey) {
-    return demoNews.where((a) {
-      final c = a.category.toLowerCase().trim();
-      return c == categoryKey.toLowerCase().trim();
-    }).toList();
+    final slug = CategoryRepository.instance.slugFor(categoryKey);
+    if (_requested.add(slug)) _repo.loadCategory(slug);
+    return _repo.articles.where((a) => a.categorySlug == slug).toList();
   }
 
   @override
@@ -475,7 +490,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final article = articles[index];
-                  final isBookmarked = _savedStore.isSaved(article.title);
+                  final isBookmarked = _savedStore.isSaved(article.id);
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 16),

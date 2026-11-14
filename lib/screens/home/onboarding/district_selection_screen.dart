@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../data/location_data.dart';
+import '../../../services/location_repository.dart';
 import '../../main/main_shell.dart';
 import '../../../services/session_prefs.dart';
 import '../../../services/app_strings.dart';
@@ -51,6 +52,7 @@ class _DistrictSelectionScreenState extends State<DistrictSelectionScreen>
   @override
   void initState() {
     super.initState();
+    LocationRepository.instance.addListener(_onLocationsChanged);
     _loadTranslatedDistricts();
   }
 
@@ -93,8 +95,14 @@ class _DistrictSelectionScreenState extends State<DistrictSelectionScreen>
     });
   }
 
+  // Mandals/villages load on demand from the API; rebuild when they arrive.
+  void _onLocationsChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    LocationRepository.instance.removeListener(_onLocationsChanged);
     _auroraController.dispose();
     _selectedDistrictNotifier.dispose();
     _searchController.dispose();
@@ -190,8 +198,8 @@ class _DistrictSelectionScreenState extends State<DistrictSelectionScreen>
           // ============================================================
           // AURORA BACKGROUND (Isolated with RepaintBoundary)
           // ============================================================
-          RepaintBoundary(
-            child: Positioned.fill(
+          Positioned.fill(
+            child: RepaintBoundary(
               child: AnimatedBuilder(
                 animation: _auroraController,
                 builder: (context, child) {

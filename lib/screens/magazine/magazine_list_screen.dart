@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../data/demo_magazines.dart';
+import '../../services/news_service.dart';
 import '../../models/magazine.dart';
 import '../../services/app_strings.dart';
 import '../../services/magazine_store.dart';
@@ -29,7 +29,12 @@ class _MagazineListScreenState extends State<MagazineListScreen> {
     _store.load().then((_) {
       if (mounted) setState(() {});
     });
+    NewsRepository.instance.loadMagazines().then((_) {
+      if (mounted) setState(() {});
+    });
   }
+
+  List<Magazine> get _magazines => NewsRepository.instance.magazines;
 
   void _openReader(Magazine magazine) {
     Navigator.of(context).push(
@@ -83,9 +88,9 @@ class _MagazineListScreenState extends State<MagazineListScreen> {
       ),
       body: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        itemCount: demoMagazines.length,
+        itemCount: _magazines.length,
         itemBuilder: (context, index) {
-          final mag = demoMagazines[index];
+          final mag = _magazines[index];
           final isLiked = _store.isLiked(mag.id);
           final isSaved = _store.isSaved(mag.id);
 
