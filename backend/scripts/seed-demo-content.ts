@@ -154,7 +154,8 @@ const magazines = [
 /** Downloads a photo and runs it through the same WebP pipeline the worker uses. */
 async function uploadImage(url: string): Promise<string | null> {
   try {
-    const res = await fetch(url)
+    let res = await fetch(url)
+    if (!res.ok) res = await fetch(url) // one retry for flaky connections
     if (!res.ok) throw new Error(String(res.status))
     const input = Buffer.from(await res.arrayBuffer())
     const meta = await sharp(input).metadata()
@@ -191,8 +192,15 @@ for (const a of articles) {
     console.warn(`  unknown district ${a.district}, skipped`)
     continue
   }
-  const exists = await sql`SELECT 1 FROM app.articles WHERE title = ${a.title} AND source = ${DEMO_SOURCE}`
-  if (exists.length) continue
+  const exists = await sql`SELECT id, cover_media_id FROM app.articles WHERE title = ${a.title} AND source = ${DEMO_SOURCE}`
+  if (exists.length) {
+    // Re-runs fill in photos that failed to download last time.
+    if (!exists[0]!.cover_media_id && a.image) {
+      const mediaId = await uploadImage(a.image)
+      if (mediaId) await sql`UPDATE app.articles SET cover_media_id = ${mediaId} WHERE id = ${exists[0]!.id}`
+    }
+    continue
+  }
   const mediaId = a.image ? await uploadImage(a.image) : null
   await sql`
     INSERT INTO app.articles (title, summary, body, language, category_id, state_id, district_id, cover_media_id,
