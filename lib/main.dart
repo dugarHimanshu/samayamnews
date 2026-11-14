@@ -45,7 +45,7 @@ class NewsApp extends StatelessWidget {
       builder: (context, _) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'News App',
+          title: 'Samayam News',
           themeMode: AppThemeState.instance.themeMode,
           theme: ThemeData(
             useMaterial3: true,
