@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../data/location_data.dart';
 import '../../models/news_submission.dart';
 import '../../services/submission_service.dart';
+import '../../widgets/common/app_media_viewer.dart';
 import 'my_submissions_screen.dart';
 
 // ============================================================
@@ -33,12 +34,18 @@ const List<String> kNewsCategories = [
 const List<String> kAllowedStates = ['Telangana', 'Andhra Pradesh'];
 
 const List<String> kAllowedImageExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+const List<String> kAllowedVideoExtensions = ['mp4', 'mov', 'm4v', 'webm', 'avi', 'mkv'];
 
-const int kMaxImageSizeMb = 10;
+const int kMaxImageSizeMb = 15;
+const int kMaxVideoSizeMb = 50;
 
 const int kHeadlineMaxLength = 140;
 const int kDescriptionMaxLength = 300;
 const int kContentMaxLength = 10000;
+
+// Maximum recommended words/lines that can be visibly displayed on a single-page news card
+const int kMaxCardDisplayWords = 85;
+const int kMaxCardDisplayLines = 9;
 
 // ============================================================
 // NEWS SUBMISSION FORM
@@ -83,7 +90,9 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
 
   String? _selectedCategory;
 
-  File? _pickedImage;
+  File? _pickedMediaFile;
+  bool _isVideo = false;
+  bool _showCutOffPreview = false;
 
   String? _userRole;
 
@@ -272,56 +281,199 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
   }
 
   // ============================================================
-  // IMAGE
+  // MEDIA (PHOTO & VIDEO)
   // ============================================================
 
-  Future<void> _pickImage() async {
+  void _showMediaPickerModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.black12,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Select Media Type',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Upload a photo or video to accompany your story',
+                style: GoogleFonts.inter(fontSize: 11.5, color: Colors.black54),
+              ),
+              const SizedBox(height: 18),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.photo_library_outlined, color: Colors.blueAccent),
+                ),
+                title: const Text('Choose Photo from Gallery', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                subtitle: const Text('JPEG, PNG, WEBP up to 15MB', style: TextStyle(fontSize: 11)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickPhoto(source: ImageSource.gallery);
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0FDF4),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.camera_alt_outlined, color: Colors.green),
+                ),
+                title: const Text('Take Photo with Camera', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                subtitle: const Text('Capture a live picture', style: TextStyle(fontSize: 11)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickPhoto(source: ImageSource.camera);
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFAF5FF),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.video_library_outlined, color: Colors.purple),
+                ),
+                title: const Text('Choose Video from Gallery', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                subtitle: const Text('MP4, MOV, WEBM up to 50MB', style: TextStyle(fontSize: 11)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickVideo(source: ImageSource.gallery);
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF1F2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.videocam_outlined, color: Colors.redAccent),
+                ),
+                title: const Text('Record Video with Camera', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                subtitle: const Text('Record live video footage', style: TextStyle(fontSize: 11)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickVideo(source: ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickPhoto({ImageSource source = ImageSource.gallery}) async {
     try {
       final picked = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         imageQuality: 90,
       );
 
-      if (picked == null) {
-        return;
-      }
+      if (picked == null) return;
 
       final extension = picked.path.split('.').last.toLowerCase();
-
       if (!kAllowedImageExtensions.contains(extension)) {
         _showError('Please choose a JPG, JPEG, PNG, or WEBP image.');
         return;
       }
 
       final file = File(picked.path);
-
       final bytes = await file.length();
-
       final sizeInMb = bytes / (1024 * 1024);
 
       if (sizeInMb > kMaxImageSizeMb) {
-        _showError(
-          'This image is '
-          '${sizeInMb.toStringAsFixed(1)}MB. '
-          'Please choose an image under '
-          '$kMaxImageSizeMb MB.',
-        );
+        _showError('Image is ${sizeInMb.toStringAsFixed(1)}MB. Limit is $kMaxImageSizeMb MB.');
         return;
       }
 
       if (!mounted) return;
-
       setState(() {
-        _pickedImage = file;
+        _pickedMediaFile = file;
+        _isVideo = false;
       });
     } catch (_) {
-      _showError('We could not select that image. Please try again.');
+      _showError('Could not select that image. Please try again.');
     }
   }
 
-  void _removeImage() {
+  Future<void> _pickVideo({ImageSource source = ImageSource.gallery}) async {
+    try {
+      final picked = await _imagePicker.pickVideo(
+        source: source,
+        maxDuration: const Duration(minutes: 3),
+      );
+
+      if (picked == null) return;
+
+      final extension = picked.path.split('.').last.toLowerCase();
+      if (!kAllowedVideoExtensions.contains(extension)) {
+        _showError('Please choose a valid video file (MP4, MOV, WEBM).');
+        return;
+      }
+
+      final file = File(picked.path);
+      final bytes = await file.length();
+      final sizeInMb = bytes / (1024 * 1024);
+
+      if (sizeInMb > kMaxVideoSizeMb) {
+        _showError('Video is ${sizeInMb.toStringAsFixed(1)}MB. Limit is $kMaxVideoSizeMb MB.');
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _pickedMediaFile = file;
+        _isVideo = true;
+      });
+    } catch (_) {
+      _showError('Could not select that video. Please try again.');
+    }
+  }
+
+  void _removeMedia() {
     setState(() {
-      _pickedImage = null;
+      _pickedMediaFile = null;
+      _isVideo = false;
     });
   }
 
@@ -410,8 +562,11 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
     try {
       String? imageUrl;
 
-      if (_pickedImage != null) {
-        imageUrl = await _submissionService.uploadImage(_pickedImage!);
+      if (_pickedMediaFile != null) {
+        imageUrl = await _submissionService.uploadMedia(
+          _pickedMediaFile!,
+          isVideo: _isVideo,
+        );
       }
 
       // --------------------------------------------------------
@@ -939,13 +1094,13 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
 
                 _sectionHeader(
                   number: '05',
-                  title: 'Add a photo',
-                  subtitle: 'A clear image can make your story much stronger.',
+                  title: 'Add photo or video',
+                  subtitle: 'Upload a clear photo or video to accompany your story.',
                 ),
 
                 const SizedBox(height: 14),
 
-                _buildImageCard(),
+                _buildMediaCard(),
 
                 const SizedBox(height: 28),
 
@@ -1472,6 +1627,11 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
   // ============================================================
 
   Widget _buildContentCard() {
+    final text = _contentController.text.trim();
+    final words = text.isEmpty ? 0 : text.split(RegExp(r'\s+')).length;
+    final estimatedLines = (text.length / 50).ceil();
+    final isExceeding = words > kMaxCardDisplayWords;
+
     return _formCard(
       children: [
         _textField(
@@ -1486,7 +1646,14 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
               'who was involved and any important details...',
         ),
 
-        const SizedBox(height: 2),
+        const SizedBox(height: 8),
+
+        // ============================================================
+        // MAXIMUM DISPLAY LIMIT INDICATOR
+        // ============================================================
+        _buildContentLimitGuide(words, estimatedLines, isExceeding, text),
+
+        const SizedBox(height: 8),
 
         Container(
           padding: const EdgeInsets.all(11),
@@ -1505,8 +1672,7 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
               const SizedBox(width: 9),
               Expanded(
                 child: Text(
-                  'Tip: Include facts, names, dates, locations and '
-                  'anything that can help our editors verify the story.',
+                  'Tip: Summarize the core news within the first 85 words so the full story is immediately visible without clipping on the 1-page mobile card.',
                   style: GoogleFonts.inter(
                     fontSize: 9.5,
                     height: 1.4,
@@ -1518,6 +1684,156 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildContentLimitGuide(int words, int estimatedLines, bool isExceeding, String fullText) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isExceeding ? const Color(0xFFFFFBEB) : const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isExceeding ? const Color(0xFFFDE68A) : const Color(0xFFBBF7D0),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isExceeding ? Icons.warning_amber_rounded : Icons.check_circle_outline_rounded,
+                size: 18,
+                color: isExceeding ? Colors.amber.shade900 : Colors.green.shade800,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  isExceeding
+                      ? 'Card Display Limit Exceeded ($words / $kMaxCardDisplayWords words)'
+                      : 'Card Display Status: Within Limit ($words / $kMaxCardDisplayWords words)',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isExceeding ? Colors.amber.shade900 : Colors.green.shade900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            isExceeding
+                ? 'Mobile story cards can visibly display a maximum of ~8 to 10 lines (~$kMaxCardDisplayWords words). Only content up to this limit will appear on the card; the remaining ${words - kMaxCardDisplayWords} words will NOT be displayed.'
+                : 'Mobile story cards display up to ~8 to 10 lines (~$kMaxCardDisplayWords words). Your current story fits comfortably within the visible area.',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              height: 1.4,
+              color: isExceeding ? const Color(0xFF92400E) : const Color(0xFF166534),
+            ),
+          ),
+          if (isExceeding) ...[
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: () {
+                setState(() {
+                  _showCutOffPreview = !_showCutOffPreview;
+                });
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _showCutOffPreview ? 'Hide Cut-Off Preview' : 'Show What Will & Won\'t Appear',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.amber.shade900,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      _showCutOffPreview ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                      size: 16,
+                      color: Colors.amber.shade900,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_showCutOffPreview) ...[
+              const SizedBox(height: 8),
+              _buildCutOffVisualizer(fullText),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCutOffVisualizer(String fullText) {
+    final allWords = fullText.split(RegExp(r'\s+'));
+    final visibleWords = allWords.take(kMaxCardDisplayWords).join(' ');
+    final hiddenWords = allWords.skip(kMaxCardDisplayWords).join(' ');
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'WILL APPEAR ON NEWS CARD (~$kMaxCardDisplayWords words):',
+                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.green.shade800),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            visibleWords,
+            style: GoogleFonts.inter(fontSize: 11, height: 1.35, color: Colors.black87),
+          ),
+          const SizedBox(height: 8),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'WILL NOT APPEAR ON NEWS CARD (CLIPPED):',
+                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.redAccent.shade700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            hiddenWords,
+            style: GoogleFonts.inter(fontSize: 11, height: 1.35, color: Colors.black38, fontStyle: FontStyle.italic),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1581,156 +1897,202 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
   }
 
   // ============================================================
-  // IMAGE CARD
+  // MEDIA CARD (PHOTO & VIDEO)
   // ============================================================
 
-  Widget _buildImageCard() {
+  Widget _buildMediaCard() {
     return Column(
       children: [
-        GestureDetector(
-          onTap: _submitting ? null : _pickImage,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            width: double.infinity,
-            height: 190,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(
-                color: _pickedImage == null
-                    ? const Color(0xFFE5E5E2)
-                    : Colors.black.withValues(alpha: 0.08),
-              ),
-              borderRadius: BorderRadius.circular(22),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: _pickedImage == null
-                ? _buildEmptyImageState()
-                : _buildImagePreview(),
-          ),
-        ),
-
-        const SizedBox(height: 11),
-
-        _buildImageRequirements(),
-      ],
-    );
-  }
-
-  Widget _buildEmptyImageState() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          width: 58,
-          height: 58,
-          decoration: const BoxDecoration(
-            color: Color(0xFFF1F1EF),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.add_photo_alternate_outlined,
-            size: 27,
-            color: Colors.black54,
-          ),
-        ),
+        if (_pickedMediaFile == null)
+          _buildEmptyMediaPickerState()
+        else
+          _buildMediaPreview(),
 
         const SizedBox(height: 12),
 
-        Text(
-          'Add a story image',
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: Colors.black87,
-          ),
-        ),
-
-        const SizedBox(height: 4),
-
-        Text(
-          'Tap to choose from your gallery',
-          style: GoogleFonts.inter(fontSize: 9.5, color: Colors.black45),
-        ),
-
-        const SizedBox(height: 10),
-
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF7F7F5),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            'OPTIONAL',
-            style: GoogleFonts.inter(
-              fontSize: 7.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
-              color: Colors.black45,
-            ),
-          ),
-        ),
+        _buildMediaRequirements(),
       ],
     );
   }
 
-  Widget _buildImagePreview() {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.file(_pickedImage!, fit: BoxFit.cover),
-
-        Positioned(
-          left: 12,
-          bottom: 12,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.70),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.check_circle_rounded,
-                  size: 14,
-                  color: Colors.white,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Image selected',
-                  style: GoogleFonts.inter(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+  Widget _buildEmptyMediaPickerState() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE5E5E2)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: Color(0xFFD1D5DB)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
+                  icon: const Icon(Icons.add_photo_alternate_outlined, color: Colors.black87),
+                  label: Text(
+                    'Upload Photo',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.black87),
+                  ),
+                  onPressed: _submitting ? null : () => _pickPhoto(source: ImageSource.gallery),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: Color(0xFFD1D5DB)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  icon: const Icon(Icons.videocam_outlined, color: Colors.deepPurple),
+                  label: Text(
+                    'Upload Video',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.deepPurple),
+                  ),
+                  onPressed: _submitting ? null : () => _pickVideo(source: ImageSource.gallery),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: _submitting ? null : _showMediaPickerModal,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              alignment: Alignment.center,
+              child: Text(
+                'More Options (Camera / Formats)',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black54,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMediaPreview() {
+    final fileName = _pickedMediaFile!.path.split(Platform.pathSeparator).last;
+
+    return Container(
+      width: double.infinity,
+      height: 220,
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Media Player / Image Viewer
+          AppMediaViewer(
+            file: _pickedMediaFile,
+            fit: BoxFit.cover,
+            autoPlay: true,
+            looping: true,
+            showControls: true,
+          ),
+
+          // Top action buttons: Change & Remove
+          Positioned(
+            top: 10,
+            right: 10,
+            child: Row(
+              children: [
+                _imageAction(
+                  icon: Icons.refresh_rounded,
+                  tooltip: 'Change media',
+                  onTap: _showMediaPickerModal,
+                ),
+                const SizedBox(width: 7),
+                _imageAction(
+                  icon: Icons.delete_outline_rounded,
+                  tooltip: 'Remove media',
+                  onTap: _removeMedia,
                 ),
               ],
             ),
           ),
-        ),
 
-        Positioned(
-          top: 10,
-          right: 10,
-          child: Row(
-            children: [
-              _imageAction(
-                icon: Icons.refresh_rounded,
-                tooltip: 'Change image',
-                onTap: _pickImage,
+          // Bottom label
+          Positioned(
+            left: 12,
+            bottom: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 7),
-              _imageAction(
-                icon: Icons.delete_outline_rounded,
-                tooltip: 'Remove image',
-                onTap: _removeImage,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _isVideo ? Icons.videocam_rounded : Icons.photo_rounded,
+                    size: 14,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _isVideo ? 'Video Selected ($fileName)' : 'Photo Selected ($fileName)',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMediaRequirements() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F7F5),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.info_outline_rounded, size: 15, color: Colors.black54),
+              const SizedBox(width: 6),
+              Text(
+                'Media Guidelines:',
+                style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w700, color: Colors.black87),
               ),
             ],
           ),
-        ),
-      ],
+          const SizedBox(height: 5),
+          Text(
+            '• Photos: JPG, PNG, WEBP (up to $kMaxImageSizeMb MB)\n'
+            '• Videos: MP4, MOV, WEBM (up to $kMaxVideoSizeMb MB, max 3 min)\n'
+            '• Ensure you hold rights or have permission to publish the media.',
+            style: GoogleFonts.inter(fontSize: 10, height: 1.4, color: Colors.black54),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1752,50 +2114,6 @@ class _NewsSubmissionFormState extends State<NewsSubmissionForm> {
             height: 38,
             child: Icon(icon, size: 18, color: Colors.white),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImageRequirements() {
-    return Row(
-      children: [
-        _requirementChip(Icons.image_outlined, 'JPG / PNG / WEBP'),
-        const SizedBox(width: 6),
-        _requirementChip(Icons.data_usage_rounded, 'MAX ${kMaxImageSizeMb}MB'),
-        const SizedBox(width: 6),
-        _requirementChip(Icons.verified_outlined, 'VALID FILE'),
-      ],
-    );
-  }
-
-  Widget _requirementChip(IconData icon, String text) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F1EF),
-          borderRadius: BorderRadius.circular(11),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 12, color: Colors.black45),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  fontSize: 7,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.2,
-                  color: Colors.black45,
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );

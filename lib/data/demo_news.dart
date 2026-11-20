@@ -20,6 +20,23 @@ const List<NewsArticle> demoNews = [
   ),
 
   NewsArticle(
+    id: 'news_001_video',
+    title:
+        'Watch: ISRO successfully conducts high-thrust propulsion hot fire test',
+    description:
+        'Live video from the propulsion test facility as aerospace scientists test the next-generation engine for deep space exploration.',
+    category: 'Technology',
+    author: 'Deepak Sharma',
+    source: 'Aerospace Desk',
+    publishedAt: '25 min ago',
+    imageUrl:
+        'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
+    location: 'Bengaluru',
+    content:
+        'The Indian Space Research Organisation has successfully carried out hot fire tests for its new high-thrust propulsion systems.\n\nThe breakthrough represents a significant advancement for India\'s satellite launch capabilities and human spaceflight missions.',
+  ),
+
+  NewsArticle(
     id: 'news_002',
     title:
         'Heavy rainfall brings relief to several areas while authorities monitor water levels',

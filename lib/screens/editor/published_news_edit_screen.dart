@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../data/location_data.dart';
 import '../../models/news_article.dart';
 import '../../services/editor_service.dart';
+import '../../widgets/common/app_media_viewer.dart';
 import '../contributor/news_submission_form.dart'
     show kNewsCategories, kAllowedStates;
 
@@ -272,23 +273,16 @@ class _PublishedNewsEditScreenState extends State<PublishedNewsEditScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(20),
-                        child: Image.network(
-                          widget.article.imageUrl,
+                        child: SizedBox(
                           height: 220,
                           width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              height: 220,
-                              color: const Color(0xFFEDEDEB),
-                              alignment: Alignment.center,
-                              child: const Icon(
-                                Icons.image_outlined,
-                                size: 42,
-                                color: Colors.black38,
-                              ),
-                            );
-                          },
+                          child: AppMediaViewer(
+                            url: widget.article.imageUrl,
+                            fit: BoxFit.cover,
+                            autoPlay: false,
+                            looping: true,
+                            showControls: true,
+                          ),
                         ),
                       ),
                       Positioned(

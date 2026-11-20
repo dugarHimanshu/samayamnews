@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:translator/translator.dart';
 
 import '../../models/news_article.dart';
+import '../../widgets/common/app_media_viewer.dart';
 
 class NewsStoryPage extends StatefulWidget {
   final NewsArticle article;
@@ -488,25 +488,12 @@ class _NewsStoryPageState extends State<NewsStoryPage> {
                   background: Stack(
                     fit: StackFit.expand,
                     children: [
-                      CachedNetworkImage(
-                        imageUrl: widget.article.imageUrl,
+                      AppMediaViewer(
+                        url: widget.article.imageUrl,
                         fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(
-                          color: Colors.grey.shade900,
-                          child: const Center(
-                            child: CircularProgressIndicator(
-                              color: Colors.white38,
-                            ),
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          color: Colors.grey.shade900,
-                          child: const Icon(
-                            Icons.image_outlined,
-                            color: Colors.white38,
-                            size: 60,
-                          ),
-                        ),
+                        autoPlay: true,
+                        looping: true,
+                        showControls: true,
                       ),
                       DecoratedBox(
                         decoration: BoxDecoration(

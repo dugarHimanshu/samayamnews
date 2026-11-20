@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../data/demo_news.dart';
 import '../../models/news_article.dart';
 import '../../services/saved_news_store.dart';
+import '../../widgets/common/app_media_viewer.dart';
 import '../home/news_story_page.dart';
 
 class CategoryItemInfo {
@@ -503,17 +504,15 @@ class _CategoryScreenState extends State<CategoryScreen> {
                             if (article.imageUrl.isNotEmpty)
                               ClipRRect(
                                 borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                                child: Image.network(
-                                  article.imageUrl,
+                                child: SizedBox(
                                   height: 160,
                                   width: double.infinity,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => Container(
-                                    height: 140,
-                                    color: Colors.grey.shade100,
-                                    child: const Center(
-                                      child: Icon(Icons.broken_image_rounded, color: Colors.black26),
-                                    ),
+                                  child: AppMediaViewer(
+                                    url: article.imageUrl,
+                                    fit: BoxFit.cover,
+                                    autoPlay: false,
+                                    looping: true,
+                                    showControls: true,
                                   ),
                                 ),
                               ),

@@ -18,6 +18,7 @@ import '../../services/news_service.dart';
 import '../../services/saved_news_store.dart';
 import '../../services/magazine_store.dart';
 import '../../services/article_translator.dart';
+import '../../widgets/common/app_media_viewer.dart';
 import '../magazine/magazine_reader_page.dart';
 
 // ============================================================
@@ -1240,12 +1241,15 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // The news image (grey box if there is no image)
+                  // The news media (video or image, grey box if there is no media)
                   widget.article.imageUrl.isEmpty
                       ? Container(color: Colors.grey.shade200)
-                      : CachedNetworkImage(
-                          imageUrl: widget.article.imageUrl,
+                      : AppMediaViewer(
+                          url: widget.article.imageUrl,
                           fit: BoxFit.cover,
+                          autoPlay: true,
+                          looping: true,
+                          showControls: true,
                         ),
                   // Dark gradient on top and bottom of the image
                   DecoratedBox(
@@ -1293,7 +1297,7 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
-                        vertical: 4,
+                        vertical: 5,
                       ),
                       decoration: BoxDecoration(
                         color: Colors.white24,
@@ -1302,8 +1306,9 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
                       child: Text(
                         widget.article.category.toUpperCase(),
                         style: GoogleFonts.inter(
-                          fontSize: 8,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w800,
+                          letterSpacing: 0.6,
                           color: Colors.black,
                         ),
                       ),
@@ -1337,19 +1342,19 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Title displays gracefully
+                                // Title displays gracefully with enhanced size
                                 Text(
                                   _title,
                                   maxLines: titleLines,
                                   overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.plusJakartaSans(
-                                    fontSize: isSmallScreen ? 16 : 18,
-                                    fontWeight: FontWeight.w700,
-                                    height: 1.2,
+                                    fontSize: isSmallScreen ? 19 : 22,
+                                    fontWeight: FontWeight.w800,
+                                    height: 1.22,
                                     color: Colors.black,
                                   ),
                                 ),
-                                const SizedBox(height: 6),
+                                const SizedBox(height: 7),
                                 // Thin line under the title
                                 Divider(
                                   color: Colors.black.withValues(alpha: 0.35),
@@ -1357,30 +1362,32 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
                                   height: 1,
                                 ),
                                 const SizedBox(height: 8),
-                                // Short description
+                                // Short description / Caption with increased font size
                                 if (_desc.trim().isNotEmpty) ...[
                                   Text(
                                     _desc,
                                     maxLines: descLines,
                                     overflow: TextOverflow.ellipsis,
                                     style: GoogleFonts.inter(
-                                      fontSize: isSmallScreen ? 10.5 : 11,
-                                      height: 1.45,
+                                      fontSize: isSmallScreen ? 13.5 : 15,
+                                      height: 1.42,
+                                      fontWeight: FontWeight.w500,
                                       color: Colors.black87,
                                     ),
                                   ),
-                                  const SizedBox(height: 6),
+                                  const SizedBox(height: 8),
                                 ],
-                                // Main body text
+                                // Main body text (news item displayed below) with increased font size
                                 if (_body.trim().isNotEmpty)
                                   Text(
                                     _body,
                                     maxLines: bodyLines,
                                     overflow: TextOverflow.ellipsis,
                                     style: GoogleFonts.inter(
-                                      fontSize: isSmallScreen ? 11 : 12,
-                                      height: 1.45,
-                                      color: Colors.black87,
+                                      fontSize: isSmallScreen ? 14 : 15.5,
+                                      height: 1.48,
+                                      fontWeight: FontWeight.w400,
+                                      color: const Color(0xFF222222),
                                     ),
                                   ),
                               ],
@@ -1401,7 +1408,7 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.inter(
-                                  fontSize: isSmallScreen ? 9.5 : 10,
+                                  fontSize: isSmallScreen ? 11 : 12,
                                   color: Colors.black54,
                                 ),
                               ),

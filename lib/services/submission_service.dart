@@ -46,21 +46,34 @@ class SubmissionService {
     return response['submission_count'] as int;
   }
 
-  // Uploads an image to the "news-images" storage bucket and
+  // Uploads an image or video to the Supabase storage bucket and
   // returns its public URL, ready to store as image_url.
-  Future<String> uploadImage(File imageFile) async {
+  Future<String> uploadMedia(File mediaFile, {bool isVideo = false}) async {
     final user = _client.auth.currentUser;
     if (user == null) {
-      throw Exception('You must be logged in to upload an image.');
+      throw Exception('You must be logged in to upload media.');
     }
 
-    // unique file path so two users' uploads never collide
-    final fileName = '${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final ext = mediaFile.path.split('.').last.toLowerCase();
+    final fileName = '${user.id}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    final bucket = isVideo ? 'news-videos' : 'news-images';
 
-    await _client.storage.from('news-images').upload(fileName, imageFile);
-
-    return _client.storage.from('news-images').getPublicUrl(fileName);
+    try {
+      await _client.storage.from(bucket).upload(fileName, mediaFile);
+      return _client.storage.from(bucket).getPublicUrl(fileName);
+    } catch (_) {
+      if (isVideo) {
+        // If news-videos bucket is not configured, fall back to news-images
+        await _client.storage.from('news-images').upload(fileName, mediaFile);
+        return _client.storage.from('news-images').getPublicUrl(fileName);
+      }
+      rethrow;
+    }
   }
+
+  // Uploads an image to the "news-images" storage bucket and
+  // returns its public URL, ready to store as image_url.
+  Future<String> uploadImage(File imageFile) => uploadMedia(imageFile, isVideo: false);
 
   // Submits a news story. We always stamp submitter_id with the
   // CURRENT logged-in user here — never trust whatever the caller
