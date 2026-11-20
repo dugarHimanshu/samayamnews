@@ -4,7 +4,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:translator/translator.dart';
 
 import '../../models/news_article.dart';
+import '../../data/demo_news.dart';
 import '../../widgets/common/app_media_viewer.dart';
+import '../../widgets/timeline/story_timeline_sheet.dart';
+import '../../utils/display_formatters.dart';
 
 class NewsStoryPage extends StatefulWidget {
   final NewsArticle article;
@@ -39,7 +42,6 @@ class _NewsStoryPageState extends State<NewsStoryPage> {
     'English': 'en',
     'Hindi': 'hi',
     'Telugu': 'te',
-    'Hinglish': 'hi',
   };
 
   @override
@@ -284,175 +286,15 @@ class _NewsStoryPageState extends State<NewsStoryPage> {
   }
 
   void _showLanguageSelector() {
-    final languages = _languageCodes.keys.toList();
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.12),
-                    blurRadius: 30,
-                    offset: const Offset(0, -8),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Read in',
-                              style: GoogleFonts.playfairDisplay(
-                                fontSize: 27,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.black,
-                                height: 1.05,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              'Choose a language',
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.black45,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.close_rounded,
-                            size: 19,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  ...languages.map((language) {
-                    final selected = language == _currentLanguage;
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () {
-                          Navigator.pop(context);
-
-                          if (_currentLanguage == language) {
-                            return;
-                          }
-
-                          setState(() {
-                            _currentLanguage = language;
-                          });
-
-                          _translateContent(language);
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeOutCubic,
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 13,
-                          ),
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? Colors.black
-                                : const Color(0xFFF6F6F4),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: selected
-                                  ? Colors.black
-                                  : Colors.black.withValues(alpha: 0.04),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: selected
-                                      ? Colors.white.withValues(alpha: 0.12)
-                                      : Colors.white,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  selected
-                                      ? Icons.check_rounded
-                                      : Icons.language_rounded,
-                                  size: 18,
-                                  color: selected
-                                      ? Colors.white
-                                      : Colors.black45,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  language,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: selected
-                                        ? Colors.white
-                                        : Colors.black87,
-                                  ),
-                                ),
-                              ),
-                              if (selected)
-                                Text(
-                                  'CURRENT',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 8,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.1,
-                                    color: Colors.white54,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
-        );
+    NeatLanguagePickerSheet.show(
+      context,
+      currentLanguage: _currentLanguage,
+      onSelected: (language) {
+        if (_currentLanguage == language) return;
+        setState(() {
+          _currentLanguage = language;
+        });
+        _translateContent(language);
       },
     );
   }
@@ -713,6 +555,13 @@ class _NewsStoryPageState extends State<NewsStoryPage> {
                                 fontWeight: FontWeight.w400,
                                 color: Colors.black87,
                               ),
+                            ),
+                            const SizedBox(height: 24),
+                            // Story Timeline & Follow-up Developments
+                            StoryTimelineInlineSection(
+                              currentArticleId: widget.article.id,
+                              availableArticles: demoNews,
+                              selectedLanguage: _currentLanguage,
                             ),
                           ],
                         ),

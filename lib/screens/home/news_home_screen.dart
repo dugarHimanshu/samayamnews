@@ -18,7 +18,10 @@ import '../../services/news_service.dart';
 import '../../services/saved_news_store.dart';
 import '../../services/magazine_store.dart';
 import '../../services/article_translator.dart';
+import '../../services/story_timeline_service.dart';
+import '../../utils/display_formatters.dart';
 import '../../widgets/common/app_media_viewer.dart';
+import '../../widgets/timeline/story_timeline_sheet.dart';
 import '../magazine/magazine_reader_page.dart';
 
 // ============================================================
@@ -973,6 +976,7 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
     return _SinglePageStory(
       key: ValueKey(articleKey),
       article: article,
+      allArticles: _articles,
       liked: _likedArticleIds.contains(articleKey),
       bookmarked: _savedStore.isSaved(article.title),
       onLike: () {
@@ -1079,6 +1083,7 @@ class _SinglePageStory extends StatefulWidget {
   final VoidCallback onBookmark;
   final String selectedLanguage;
   final String selectedDistrict;
+  final List<NewsArticle>? allArticles;
 
   const _SinglePageStory({
     super.key,
@@ -1089,6 +1094,7 @@ class _SinglePageStory extends StatefulWidget {
     required this.onBookmark,
     required this.selectedLanguage,
     required this.selectedDistrict,
+    this.allArticles,
   });
 
   @override
@@ -1163,63 +1169,74 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
 
   // Bottom sheet to choose the reading language
   void _showLangPicker() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Material(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        clipBehavior: Clip.antiAlias,
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 38,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(10),
+    NeatLanguagePickerSheet.show(
+      context,
+      currentLanguage: _lang,
+      onSelected: (l) {
+        setState(() => _lang = l);
+        _translate(l);
+      },
+    );
+  }
+
+  Widget _buildTimelineBadge() {
+    return ListenableBuilder(
+      listenable: StoryTimelineService.instance,
+      builder: (context, _) {
+        final timeline = StoryTimelineService.instance.getTimelineForArticle(widget.article.id);
+        if (timeline == null || timeline.articleIds.length <= 1) {
+          return const SizedBox.shrink();
+        }
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 7),
+          child: InkWell(
+            onTap: () {
+              StoryTimelineSheet.show(
+                context,
+                articleId: widget.article.id,
+                availableArticles: widget.allArticles ?? demoNews,
+                selectedLanguage: _lang,
+              );
+            },
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEBF3FE),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFF2979FF).withValues(alpha: 0.35),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.timeline_rounded,
+                    size: 13,
+                    color: Color(0xFF1565C0),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Story Timeline (${timeline.articleIds.length} updates)',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF0D47A1),
                     ),
                   ),
-                ),
-                Text(
-                  'Read in',
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 8.5,
+                    color: Color(0xFF1565C0),
                   ),
-                ),
-                const SizedBox(height: 12),
-                // One row per available language
-                ...ArticleTranslator.languageCodes.keys.map(
-                  (l) => ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    title: Text(
-                      l,
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                    ),
-                    trailing: l == _lang ? const Icon(Icons.check, size: 18, color: Colors.black) : null,
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      setState(() => _lang = l);
-                      _translate(l);
-                    },
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1342,6 +1359,7 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                _buildTimelineBadge(),
                                 // Title displays gracefully with enhanced size
                                 Text(
                                   _title,

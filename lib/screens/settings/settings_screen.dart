@@ -7,6 +7,7 @@ import '../../data/location_data.dart';
 import '../../services/app_strings.dart';
 import '../../services/auth_service.dart';
 import '../../services/session_prefs.dart';
+import '../../utils/display_formatters.dart';
 import '../home/onboarding/welcome_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -45,6 +46,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _language = widget.selectedLanguage;
     _state = widget.selectedState;
     _district = widget.selectedDistrict;
+  }
+
+  // ------------------------------------------------------------
+  // LANGUAGE CHANGER
+  // ------------------------------------------------------------
+  void _openLanguageDialog() {
+    NeatLanguagePickerSheet.show(
+      context,
+      currentLanguage: _language,
+      onSelected: (newLang) async {
+        setState(() => _language = newLang);
+        await SessionPrefs.saveSelections(
+          language: newLang,
+          state: _state,
+          district: _district,
+        );
+        widget.onLanguageChanged?.call(newLang);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Language updated to ${DisplayFormatters.languageDisplayName(newLang)}'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      },
+    );
   }
 
   // ------------------------------------------------------------
@@ -173,7 +200,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               value: districts.contains(tempDistrict) ? tempDistrict : (districts.isNotEmpty ? districts.first : null),
                               isExpanded: true,
                               dropdownColor: isDark ? const Color(0xFF282A33) : Colors.white,
-                              items: districts.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+                              items: districts.map((d) {
+                                final short = DisplayFormatters.shortDistrict(d);
+                                final isAliased = short != d;
+                                return DropdownMenuItem(
+                                  value: d,
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        short,
+                                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                                      ),
+                                      if (isAliased) ...[
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            '($d)',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 10.5,
+                                              color: isDark ? Colors.white38 : Colors.black38,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
                               onChanged: (val) {
                                 if (val == null) return;
                                 setModalState(() => tempDistrict = val);
@@ -361,12 +416,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     clipBehavior: Clip.antiAlias,
                     child: Column(
                       children: [
+                        // App Language
+                        ListTile(
+                          leading: Icon(Icons.language_outlined, color: isDark ? Colors.white70 : Colors.black87),
+                          title: const Text('App Language', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                          subtitle: Text(
+                            DisplayFormatters.languageDisplayName(_language),
+                            style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
+                          ),
+                          trailing: LanguagePill(
+                            language: _language,
+                            isDark: isDark,
+                          ),
+                          onTap: _openLanguageDialog,
+                        ),
+                        Divider(height: 1, indent: 56, color: isDark ? Colors.white12 : const Color(0xFFEEEEEE)),
+
                         // Location (moved under Settings)
                         ListTile(
                           leading: Icon(Icons.location_on_outlined, color: isDark ? Colors.white70 : Colors.black87),
                           title: const Text('News Location', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                          subtitle: Text('$_district, $_state', style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54)),
-                          trailing: Icon(Icons.chevron_right_rounded, size: 20, color: isDark ? Colors.white54 : Colors.black45),
+                          subtitle: Text(
+                            DisplayFormatters.compactLocation(_district, _state),
+                            style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
+                          ),
+                          trailing: LocationPill(
+                            district: _district,
+                            state: _state,
+                            isDark: isDark,
+                          ),
                           onTap: _openLocationDialog,
                         ),
                         Divider(height: 1, indent: 56, color: isDark ? Colors.white12 : const Color(0xFFEEEEEE)),

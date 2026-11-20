@@ -8,6 +8,7 @@ import '../../../services/session_prefs.dart';
 import '../../../services/app_strings.dart';
 import '../../../services/place_translations.dart';
 import '../../../services/translation_service.dart';
+import '../../../utils/display_formatters.dart';
 
 class DistrictSelectionScreen extends StatefulWidget {
   final String selectedLanguage;
@@ -956,11 +957,23 @@ class _BouncyDistrictCardState extends State<_BouncyDistrictCard> {
                               : const Color(0xFF202020),
                         ),
                         child: Text(
-                          widget.displayText,
+                          DisplayFormatters.shortDistrict(widget.displayText),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      if (DisplayFormatters.shortDistrict(widget.displayText) != widget.displayText) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.displayText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: widget.isSelected ? Colors.white70 : Colors.black45,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 3),
                       AnimatedDefaultTextStyle(
                         duration: const Duration(milliseconds: 300),

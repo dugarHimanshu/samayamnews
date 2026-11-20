@@ -9,6 +9,7 @@ import '../../models/news_article.dart';
 import '../../widgets/home/news_card.dart';
 import '../../services/location_service.dart';
 import '../../services/app_strings.dart';
+import '../../utils/display_formatters.dart';
 import '../home/news_story_page.dart';
 
 class LocationScreen extends StatefulWidget {
@@ -242,16 +243,11 @@ class _LocationScreenState extends State<LocationScreen> {
                   const SizedBox(width: 9),
 
                   Expanded(
-                    child: Text(
-                      '${widget.selectedDistrict}, '
-                      '${widget.selectedState}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        height: 1.3,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: LocationPill(
+                        district: widget.selectedDistrict,
+                        state: widget.selectedState,
                       ),
                     ),
                   ),
@@ -806,13 +802,16 @@ class _LocationScreenState extends State<LocationScreen> {
                 const SizedBox(height: 4),
 
                 Text(
-                  '${widget.selectedDistrict}, '
-                  '${widget.selectedState}',
+                  DisplayFormatters.compactLocation(
+                    widget.selectedDistrict,
+                    widget.selectedState,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
-                    fontSize: 10.5,
-                    color: Colors.black54,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
                   ),
                 ),
               ],

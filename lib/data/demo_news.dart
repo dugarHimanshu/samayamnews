@@ -37,6 +37,40 @@ const List<NewsArticle> demoNews = [
   ),
 
   NewsArticle(
+    id: 'news_isro_followup',
+    title:
+        'ISRO releases telemetry data: Propulsion test paves way for upcoming orbital mission',
+    description:
+        'Engine parameters matched simulated profiles across all burn stages during the crucial hot fire sequence at the Mahendragiri facility.',
+    category: 'Technology',
+    author: 'Deepak Sharma',
+    source: 'Aerospace Desk',
+    publishedAt: '12 min ago',
+    imageUrl:
+        'https://images.unsplash.com/photo-1517976487507-5b3b4b45a49c?auto=format&fit=crop&w=1200&q=85',
+    location: 'Bengaluru',
+    content:
+        'Hours after the successful hot fire test, ISRO mission directors confirmed that all telemetry sensors recorded nominal pressure and combustion chamber temperature profiles.\n\nThe propulsion milestone paves the way for the scheduled uncrewed test flight later this year.',
+  ),
+
+  NewsArticle(
+    id: 'news_001_followup',
+    title:
+        'Hyderabad Mega Corridor: Land acquisition expedited following PM inauguration',
+    description:
+        'State officials formed five high-level task forces to accelerate work on industrial nodes and modern transit connections.',
+    category: 'Politics',
+    author: 'Sukhveer',
+    source: 'Deccan Chronicle',
+    publishedAt: '35 min ago',
+    imageUrl:
+        'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=85',
+    location: 'Hyderabad',
+    content:
+        'Following the launch of ₹9,400 crore projects by Prime Minister Narendra Modi, the state administration has mobilized dedicated teams to oversee fast-track execution.\n\nKey priority sectors include logistics corridors, multimodal transport hubs, and industrial clusters connecting Hyderabad to regional economic nodes.',
+  ),
+
+  NewsArticle(
     id: 'news_002',
     title:
         'Heavy rainfall brings relief to several areas while authorities monitor water levels',
