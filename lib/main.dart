@@ -7,6 +7,7 @@ import 'services/supabase_config.dart';
 import 'services/session_prefs.dart';
 import 'services/app_theme_state.dart';
 import 'services/story_timeline_service.dart';
+import 'services/ad_campaign_service.dart';
 import 'screens/home/onboarding/welcome_screen.dart';
 import 'screens/main/main_shell.dart';
 import 'screens/editor/editor_dashboard_screen.dart';
@@ -21,6 +22,7 @@ void main() async {
 
   await AppThemeState.instance.loadTheme();
   await StoryTimelineService.instance.load();
+  await AdCampaignService.instance.load();
 
   runApp(const ProviderScope(child: NewsApp()));
 }

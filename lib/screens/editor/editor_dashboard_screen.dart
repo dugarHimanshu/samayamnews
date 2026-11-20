@@ -13,6 +13,7 @@ import 'editor_review_screen.dart';
 import 'published_news_edit_screen.dart';
 import 'story_timeline_linker_screen.dart';
 import 'story_timelines_overview_screen.dart';
+import '../admin/ad_campaign_planner_screen.dart';
 
 // ============================================================
 // FILTERS
@@ -980,6 +981,39 @@ class _EditorDashboardScreenState extends State<EditorDashboardScreen>
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
                     color: Colors.blueAccent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AdCampaignPlannerScreen()),
+            );
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.campaign_rounded, size: 12, color: Color(0xFFD97706)),
+                SizedBox(width: 4),
+                Text(
+                  'ADS PLANNER',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFB45309),
                   ),
                 ),
               ],

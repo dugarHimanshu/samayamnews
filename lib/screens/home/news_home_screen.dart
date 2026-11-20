@@ -14,6 +14,8 @@ import '../../data/demo_magazines.dart';
 import '../../data/demo_ads.dart';
 import '../../models/magazine.dart';
 import '../../models/news_article.dart';
+import '../../models/advertisement_campaign.dart';
+import '../../services/ad_campaign_service.dart';
 import '../../services/news_service.dart';
 import '../../services/saved_news_store.dart';
 import '../../services/magazine_store.dart';
@@ -21,6 +23,7 @@ import '../../services/article_translator.dart';
 import '../../services/story_timeline_service.dart';
 import '../../utils/display_formatters.dart';
 import '../../widgets/common/app_media_viewer.dart';
+import '../../widgets/home/auto_sliding_ad_card.dart';
 import '../../widgets/timeline/story_timeline_sheet.dart';
 import '../magazine/magazine_reader_page.dart';
 
@@ -860,6 +863,10 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
     _feedItems.clear();
     if (_articles.isEmpty) return;
 
+    // Active scheduled campaigns take precedence for rich 4-page sliding ads
+    final activeCampaigns = AdCampaignService.instance.activeCampaigns;
+    int campaignIndex = 0;
+
     // Use shuffled pool of unique ads so none repeat until pool is exhausted
     final adPool = List<AdvertisementItem>.from(demoAds)..shuffle(math.Random());
     int adPoolIndex = 0;
@@ -883,11 +890,17 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
 
       // STRICT RULE: An advertisement appears after every 5 news articles
       if (newsCountSinceAd == 5) {
-        // Pick unique ad without repeating
-        final adToInsert = adPoolIndex < adPool.length
-            ? adPool[adPoolIndex++]
-            : demoAds[(i ~/ 5) % demoAds.length];
-        _feedItems.add(adToInsert);
+        // Prioritize active scheduled 4-page sliding ad campaigns
+        if (activeCampaigns.isNotEmpty) {
+          final campaignToInsert = activeCampaigns[campaignIndex % activeCampaigns.length];
+          campaignIndex++;
+          _feedItems.add(campaignToInsert);
+        } else {
+          final adToInsert = adPoolIndex < adPool.length
+              ? adPool[adPoolIndex++]
+              : demoAds[(i ~/ 5) % demoAds.length];
+          _feedItems.add(adToInsert);
+        }
         newsCountSinceAd = 0;
       }
     }
@@ -956,9 +969,12 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
 
     final item = _feedItems[index];
 
-    // Case 1: Ad page
+    // Case 1: Ad page (4-page auto-sliding carousel)
+    if (item is AdvertisementCampaign) {
+      return AutoSlidingAdCard(campaign: item);
+    }
     if (item is AdvertisementItem) {
-      return _AdPage(ad: item);
+      return AutoSlidingAdCard(fallbackAd: item);
     }
 
     // Case 2: Magazine page
