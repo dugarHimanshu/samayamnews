@@ -15,11 +15,17 @@ export interface ImageDto {
   thumb: string | null
   medium: string | null
   large: string | null
+  video?: string | null
 }
 
 function imageDto(m: Pick<MediaRow, 'variants' | 'status'> | null | undefined): ImageDto | null {
   if (!m || m.status !== 'ready' || !m.variants) return null
   const v = m.variants
+  if (v.video) {
+    // Video covers: every size points at the video file; the app plays it when the URL is a video.
+    const url = mediaUrl(v.video)
+    return { thumb: url, medium: url, large: url, video: url }
+  }
   return { thumb: mediaUrl(v['320']), medium: mediaUrl(v['640']), large: mediaUrl(v['1080'] ?? v['640']) }
 }
 

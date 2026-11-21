@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'email_login_screen.dart';
+import '../../contributor/reporter_registration_screen.dart';
 import 'mobile_login_screen.dart';
 import 'google_login_screen.dart';
 import 'language_selection_screen.dart';
@@ -124,6 +125,32 @@ class WelcomeScreen extends StatelessWidget {
                   // LOGIN OPTIONS GLASS PANEL
                   // ======================================================
                   _buildLoginPanel(context),
+
+                  const SizedBox(height: 14),
+
+                  // ======================================================
+                  // REPORTER / FREELANCER REGISTRATION
+                  // ======================================================
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ReporterRegistrationScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.how_to_reg_rounded, size: 18, color: Color(0xFF1A1A1A)),
+                    label: Text(
+                      'Register as Reporter / Freelancer',
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1A1A1A),
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
 
                   const Spacer(flex: 2),
 

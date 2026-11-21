@@ -30,7 +30,8 @@ export const roleEnum = app.enum('role', ['reader', 'freelancer', 'employee', 'e
 export const locationLevelEnum = app.enum('location_level', ['state', 'district', 'mandal', 'village'])
 export const submissionStatusEnum = app.enum('submission_status', ['pending', 'in_review', 'published', 'rejected'])
 export const articleStatusEnum = app.enum('article_status', ['live', 'unpublished'])
-export const mediaKindEnum = app.enum('media_kind', ['image', 'pdf'])
+export const mediaKindEnum = app.enum('media_kind', ['image', 'pdf', 'video'])
+export const applicationStatusEnum = app.enum('application_status', ['pending', 'approved', 'rejected'])
 export const mediaStatusEnum = app.enum('media_status', ['pending', 'ready', 'failed'])
 export const submissionEventEnum = app.enum('submission_event_type', [
   'submitted',
@@ -94,6 +95,42 @@ export const profiles = app.table(
   (t) => [index('profiles_role_idx').on(t.role)],
 )
 
+/**
+ * Reporter / freelancer sign-up requests. The applicant gets a normal (reader) account right away;
+ * an admin approving the application is what upgrades their role so they can submit news.
+ */
+export const contributorApplications = app.table(
+  'contributor_applications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    requestedRole: roleEnum('requested_role').notNull(), // 'employee' (reporter) or 'freelancer'
+    fullName: text('full_name').notNull(),
+    mobile: text('mobile').notNull(),
+    email: text('email').notNull(),
+    address: text('address'),
+    stateId: integer('state_id').references(() => locations.id),
+    districtId: integer('district_id')
+      .notNull()
+      .references(() => locations.id),
+    mandalId: integer('mandal_id').references(() => locations.id),
+    status: applicationStatusEnum('status').notNull().default('pending'),
+    reviewedBy: uuid('reviewed_by').references(() => profiles.id),
+    reviewedAt: ts('reviewed_at'),
+    rejectionReason: text('rejection_reason'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('contributor_applications_status_idx').on(t.status, t.createdAt),
+    index('contributor_applications_user_idx').on(t.userId, t.createdAt),
+    // At most one open application per person.
+    uniqueIndex('contributor_applications_one_pending').on(t.userId).where(sql`status = 'pending'`),
+  ],
+)
+
 // ---------------------------------------------------------------- media
 
 export const media = app.table('media', {
@@ -103,7 +140,7 @@ export const media = app.table('media', {
   rawKey: text('raw_key').notNull(),
   contentType: text('content_type').notNull(),
   sizeBytes: integer('size_bytes').notNull(),
-  // { "320": "media/<id>/320.webp", "640": ..., "1080": ... } for images; { "pdf": key } for PDFs
+  // { "320": "media/<id>/320.webp", "640": ..., "1080": ... } for images; { "pdf": key } for PDFs; { "video": key } for videos
   variants: jsonb('variants').$type<Record<string, string>>(),
   width: integer('width'),
   height: integer('height'),

@@ -57,7 +57,7 @@ export async function assertStoryRefs(f: Partial<StoryFields>, current?: Partial
 async function assertOwnImage(mediaId: string | null | undefined, user: AuthUser) {
   if (!mediaId) return
   const m = (await db.select().from(media).where(eq(media.id, mediaId)).limit(1))[0]
-  if (!m || m.kind !== 'image') throw badRequest('Unknown image')
+  if (!m || (m.kind !== 'image' && m.kind !== 'video')) throw badRequest('Unknown image or video')
   if (m.ownerId !== user.id && !['editor', 'admin'].includes(user.role)) throw forbidden('That image belongs to someone else')
 }
 
@@ -87,7 +87,9 @@ async function enrich<T extends SubmissionRow>(rows: T[]) {
       location: { state: loc(r.stateId), district: loc(r.districtId), mandal: loc(r.mandalId), village: loc(r.villageId) },
       coverImage:
         m && m.status === 'ready' && m.variants
-          ? { thumb: mediaUrl(m.variants['320']), medium: mediaUrl(m.variants['640']), large: mediaUrl(m.variants['1080']) }
+          ? m.variants.video
+            ? { thumb: mediaUrl(m.variants.video), medium: mediaUrl(m.variants.video), large: mediaUrl(m.variants.video), video: mediaUrl(m.variants.video) }
+            : { thumb: mediaUrl(m.variants['320']), medium: mediaUrl(m.variants['640']), large: mediaUrl(m.variants['1080']) }
           : null,
       coverImageStatus: m?.status ?? null,
     }

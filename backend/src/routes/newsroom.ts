@@ -40,17 +40,23 @@ const cursorQuery = z.object({ cursor: z.string().max(500).optional(), limit: li
 const IMAGE_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic' }
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const MAX_PDF_BYTES = 50 * 1024 * 1024
+const VIDEO_TYPES: Record<string, string> = { 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm', 'video/3gpp': '3gp' }
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024 // matches the storage bucket's per-file limit
 
 newsroomRouter.post('/uploads', requireAuth, requireRole(...CONTRIBUTOR_ROLES), async (req, res) => {
   const body = parseBody(
     req,
-    z.object({ kind: z.enum(['image', 'pdf']), contentType: z.string(), sizeBytes: z.number().int().positive() }),
+    z.object({ kind: z.enum(['image', 'pdf', 'video']), contentType: z.string(), sizeBytes: z.number().int().positive() }),
   )
   let ext: string
   if (body.kind === 'image') {
     ext = IMAGE_TYPES[body.contentType] ?? ''
     if (!ext) throw badRequest('Images must be JPEG, PNG, WebP or HEIC')
     if (body.sizeBytes > MAX_IMAGE_BYTES) throw badRequest('Images must be 10 MB or smaller')
+  } else if (body.kind === 'video') {
+    ext = VIDEO_TYPES[body.contentType] ?? ''
+    if (!ext) throw badRequest('Videos must be MP4, MOV, WebM or 3GP')
+    if (body.sizeBytes > MAX_VIDEO_BYTES) throw badRequest('Videos must be 50 MB or smaller')
   } else {
     if (req.user!.role !== 'admin') throw forbidden('Only admins can upload PDFs')
     if (body.contentType !== 'application/pdf') throw badRequest('Expected application/pdf')

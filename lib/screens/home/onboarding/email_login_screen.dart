@@ -8,6 +8,9 @@ import '../../admin/admin_dashboard_screen.dart';
 import '../../editor/editor_dashboard_screen.dart';
 import 'language_selection_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../contributor/contributor_gate.dart';
+import '../../contributor/reporter_registration_screen.dart';
+import '../../../services/application_service.dart';
 
 class EmailLoginScreen extends StatefulWidget {
   const EmailLoginScreen({super.key});
@@ -170,6 +173,20 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
 
       if (role == 'reader' || role == 'freelancer' || role == 'employee') {
         _clearCredentials();
+
+        // Registered reporters waiting for approval (or not approved) get told why
+        // the newsroom isn't open yet; they can still read news meanwhile.
+        if (role == 'reader') {
+          final profile = await AuthService.instance.getCurrentUserProfile();
+          final app = profile?['application'];
+          if (app is Map && mounted) {
+            await showApplicationStatusDialog(
+              context,
+              ContributorApplication.fromApi(Map<String, dynamic>.from(app)),
+            );
+            if (!mounted) return;
+          }
+        }
 
         Navigator.pushReplacement(
           context,
@@ -749,6 +766,29 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
                                   ),
                                 ),
                               ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      Center(
+                        child: GestureDetector(
+                          onTap: _isLoading
+                              ? null
+                              : () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const ReporterRegistrationScreen()),
+                                  ),
+                          child: Text(
+                            'Want to send news? Register as Reporter / Freelancer',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF30343A),
+                              decoration: TextDecoration.underline,
                             ),
                           ),
                         ),

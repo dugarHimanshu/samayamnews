@@ -33,6 +33,7 @@ class AdminService {
       'published': n(subs, 'published'),
       'rejected': n(subs, 'rejected'),
       'live_articles': n(res, 'live_articles'),
+      'pending_applications': n(res, 'pending_applications'),
     };
   }
 

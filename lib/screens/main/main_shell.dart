@@ -14,7 +14,8 @@ import '../search/search_screen.dart';
 import '../home/onboarding/welcome_screen.dart';
 import '../location/location_screen.dart';
 import '../saved/saved_screen.dart';
-import '../contributor/news_submission_form.dart'; // NEW: real Fill Form screen
+import '../contributor/contributor_gate.dart'; // decides form vs. registration
+import '../contributor/reporter_registration_screen.dart';
 import '../magazine/magazine_list_screen.dart';
 import '../settings/settings_screen.dart';
 import '../../services/app_theme_state.dart';
@@ -307,6 +308,7 @@ class _MenuSheet extends StatelessWidget {
   // Logged-in users get sent to the submission form.
   void _onFillFormTap(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
+    final nav = Navigator.of(context);
 
     // Close the menu sheet first
     Navigator.pop(context);
@@ -320,11 +322,8 @@ class _MenuSheet extends StatelessWidget {
       return;
     }
 
-    // Logged in — open the real submission form
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const NewsSubmissionForm()),
-    );
+    // Logged in — reporters/freelancers get the form; readers are offered registration.
+    openNewsroom(nav);
   }
 
   // Language selection modal (English, Hindi, Telugu)
@@ -539,6 +538,17 @@ class _MenuSheet extends StatelessWidget {
               title: 'Fill Form',
               showLock: isGuest,
               onTap: () => _onFillFormTap(context),
+            ),
+
+            // 6b) Reporter / Freelancer registration (open to everyone)
+            _MenuItem(
+              icon: Icons.how_to_reg_rounded,
+              title: 'Reporter Registration',
+              onTap: () {
+                final nav = Navigator.of(context);
+                Navigator.pop(context);
+                nav.push(MaterialPageRoute(builder: (_) => const ReporterRegistrationScreen()));
+              },
             ),
 
             // 7) Settings (now contains Location & Account Deletion)

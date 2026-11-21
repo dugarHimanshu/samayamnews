@@ -8,11 +8,13 @@ import { invalidate, noStore } from '../lib/cache.js'
 import { decodeCursor, encodeCursor } from '../lib/cursor.js'
 import { badRequest, notFound } from '../lib/errors.js'
 import { limitSchema, parseBody, parseParams, parseQuery, uuidParam } from '../lib/validate.js'
+import { listApplications, reviewApplication } from '../services/applications.js'
+import { reviewInput } from './applications.js'
 
 export const adminRouter = Router()
 adminRouter.use(noStore, requireAuth, requireRole('admin'))
 
-// ------------------------------------------------------------------ stats (one query instead of nine)
+// ------------------------------------------------------------------ stats (one query instead of ten)
 
 adminRouter.get('/stats', async (_req, res) => {
   const [row] = await db.execute(sql`
@@ -21,7 +23,8 @@ adminRouter.get('/stats', async (_req, res) => {
       (SELECT jsonb_object_agg(role, n) FROM (SELECT role, count(*)::int n FROM app.profiles WHERE deleted_at IS NULL GROUP BY role) r) AS users_by_role,
       (SELECT jsonb_object_agg(status, n) FROM (SELECT status, count(*)::int n FROM app.submissions GROUP BY status) s) AS submissions_by_status,
       (SELECT count(*) FROM app.articles WHERE status = 'live')::int AS live_articles,
-      (SELECT count(*) FROM app.articles WHERE published_at > now() - interval '24 hours')::int AS published_24h`)
+      (SELECT count(*) FROM app.articles WHERE published_at > now() - interval '24 hours')::int AS published_24h,
+      (SELECT count(*) FROM app.contributor_applications WHERE status = 'pending')::int AS pending_applications`)
   res.json(row)
 })
 
@@ -70,6 +73,21 @@ adminRouter.patch('/users/:id', async (req, res) => {
   // Roles are read from the database (not the JWT), so this takes effect on the user's next request.
   forgetUser(id)
   res.json(p)
+})
+
+// ------------------------------------------------------------------ reporter / freelancer applications
+
+adminRouter.get('/applications', async (req, res) => {
+  const q = parseQuery(req, z.object({ status: z.enum(['pending', 'approved', 'rejected']).optional(), limit: limitSchema }))
+  res.json(await listApplications(q.status, q.limit))
+})
+
+adminRouter.post('/applications/:id/review', async (req, res) => {
+  const { id } = parseParams(req, uuidParam)
+  const body = parseBody(req, reviewInput)
+  res.json(
+    await reviewApplication(req.user!, id, body.decision === 'approve' ? { approve: true, role: body.role } : { approve: false, reason: body.reason }),
+  )
 })
 
 // ------------------------------------------------------------------ ads

@@ -9,6 +9,7 @@ import { decodeCursor, encodeCursor } from '../lib/cursor.js'
 import { badRequest, notFound } from '../lib/errors.js'
 import { limitSchema, parseBody, parseParams, parseQuery } from '../lib/validate.js'
 import { getArticlesByIds } from '../services/articles.js'
+import { latestApplicationFor } from '../services/applications.js'
 import { enqueue, QUEUES } from '../services/jobs.js'
 
 export const meRouter = Router()
@@ -17,7 +18,7 @@ meRouter.use(noStore, requireAuth)
 meRouter.get('/me', async (req, res) => {
   const p = (await db.select().from(profiles).where(eq(profiles.id, req.user!.id)).limit(1))[0]
   if (!p) throw notFound()
-  res.json({ id: p.id, email: p.email, role: p.role, fullName: p.fullName, language: p.language, homeDistrictId: p.homeDistrictId })
+  res.json({ id: p.id, email: p.email, role: p.role, fullName: p.fullName, language: p.language, homeDistrictId: p.homeDistrictId, application: p.role === 'reader' ? await latestApplicationFor(p.id) : null })
 })
 
 meRouter.patch('/me', async (req, res) => {

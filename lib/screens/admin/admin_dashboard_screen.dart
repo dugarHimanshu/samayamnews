@@ -4,6 +4,7 @@ import '../../services/admin_service.dart';
 import '../editor/editor_dashboard_screen.dart';
 import '../editor/story_timelines_overview_screen.dart';
 import 'ad_campaign_planner_screen.dart';
+import 'reporter_applications_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -661,6 +662,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       subtitle: 'Manage the newsroom review workflow.',
       child: Column(
         children: [
+          _actionTile(
+            icon: Icons.how_to_reg_rounded,
+            title: 'Reporter applications',
+            subtitle: '${_stats['pending_applications'] ?? 0} reporter / freelancer registrations waiting for approval.',
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ReporterApplicationsScreen()),
+              );
+              _loadEverything();
+            },
+          ),
+          const SizedBox(height: 8),
           _actionTile(
             icon: Icons.dashboard_outlined,
             title: 'Open Editor Desk',

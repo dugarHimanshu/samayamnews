@@ -26,6 +26,20 @@ export async function processMedia({ mediaId }: ProcessMediaJob) {
     return
   }
 
+  if (m.kind === 'video') {
+    // Stored as uploaded (no transcoding). Check the container signature so only real videos are served.
+    const isMp4Family = input.subarray(4, 8).toString() === 'ftyp' // mp4 / mov / 3gp
+    const isWebm = input.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))
+    if (!isMp4Family && !isWebm) return fail(mediaId, 'File is not a supported video')
+    const ext = m.rawKey.split('.').pop() ?? 'mp4'
+    const key = `${mediaId}/video.${ext}`
+    const up = await storage.from(MEDIA_BUCKET).upload(key, input, { contentType: m.contentType, upsert: true, cacheControl: '31536000' })
+    if (up.error) throw new Error(up.error.message)
+    await db.update(media).set({ status: 'ready', variants: { video: key }, error: null }).where(eq(media.id, mediaId))
+    await storage.from(RAW_BUCKET).remove([m.rawKey])
+    return
+  }
+
   let meta: Metadata
   try {
     meta = await sharp(input).metadata()
