@@ -840,16 +840,19 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
     if (item is AdvertisementItem) Analytics.instance.track('ad_impression', item.id);
   }
 
-  // Scheduled 4-page sliding ad campaigns (planned by admins) take the place of the
-  // server's regular ad slots while they are running.
+  // Ad slots alternate between the in-house ads managed in the admin panel (served by
+  // the API) and the scheduled 4-page sliding campaigns, so both are visible.
   int _campaignCursor = 0;
+  int _adSlot = 0;
   List<dynamic> _withCampaigns(List<dynamic> items) {
     final campaigns = AdCampaignService.instance.activeCampaigns;
     if (campaigns.isEmpty) return items;
-    return [
-      for (final item in items)
-        if (item is AdvertisementItem) campaigns[_campaignCursor++ % campaigns.length] else item,
-    ];
+    final out = <dynamic>[];
+    for (final item in items) {
+      final useCampaign = item is AdvertisementItem && (_adSlot++ % 2 == 1);
+      out.add(useCampaign ? campaigns[_campaignCursor++ % campaigns.length] : item);
+    }
+    return out;
   }
 
   // Loads the next page when the reader gets close to the end.
@@ -888,6 +891,7 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
       if (!mounted) return;
       setState(() {
         _campaignCursor = 0;
+        _adSlot = 0;
         _feedItems
           ..clear()
           ..addAll(_withCampaigns(page.items));
