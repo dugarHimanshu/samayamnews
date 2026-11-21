@@ -18,6 +18,7 @@ import '../contributor/news_submission_form.dart'; // NEW: real Fill Form screen
 import '../magazine/magazine_list_screen.dart';
 import '../settings/settings_screen.dart';
 import '../../services/app_theme_state.dart';
+import '../../utils/display_formatters.dart';
 
 class MainShell extends StatefulWidget {
   final String selectedLanguage;
@@ -328,66 +329,16 @@ class _MenuSheet extends StatelessWidget {
 
   // Language selection modal (English, Hindi, Telugu)
   void _showLanguagePicker(BuildContext context) {
-    const langs = ['English', 'Hindi', 'Telugu'];
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-
-        return Container(
-          margin: const EdgeInsets.all(12),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E2026) : Colors.white,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Select Language',
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                ...langs.map((l) {
-                  final isSelected = l.toLowerCase() == selectedLanguage.toLowerCase();
-                  return ListTile(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    title: Text(l, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: Colors.black) : null,
-                    onTap: () async {
-                      Navigator.pop(ctx);
-                      Navigator.pop(context); // close menu
-                      onLanguageChanged?.call(l);
-                      await SessionPrefs.saveSelections(
-                        language: l,
-                        state: selectedState,
-                        district: selectedDistrict,
-                      );
-                    },
-                  );
-                }),
-              ],
-            ),
-          ),
+    NeatLanguagePickerSheet.show(
+      context,
+      currentLanguage: selectedLanguage,
+      onSelected: (l) async {
+        Navigator.pop(context); // close menu
+        onLanguageChanged?.call(l);
+        await SessionPrefs.saveSelections(
+          language: l,
+          state: selectedState,
+          district: selectedDistrict,
         );
       },
     );
@@ -544,7 +495,7 @@ class _MenuSheet extends StatelessWidget {
             _MenuItem(
               icon: Icons.language_outlined,
               title: AppStrings.t('language', selectedLanguage),
-              trailing: selectedLanguage,
+              trailingWidget: LanguagePill(language: selectedLanguage),
               onTap: () => _showLanguagePicker(context),
             ),
 
@@ -625,6 +576,7 @@ class _MenuItem extends StatelessWidget {
   final IconData icon;
   final String title;
   final String? trailing;
+  final Widget? trailingWidget;
   final bool
   showLock; // NEW: when true, shows a small lock icon instead of the chevron
   final VoidCallback onTap;
@@ -633,6 +585,7 @@ class _MenuItem extends StatelessWidget {
     required this.icon,
     required this.title,
     this.trailing,
+    this.trailingWidget,
     this.showLock = false, // NEW
     required this.onTap,
   });
@@ -670,7 +623,9 @@ class _MenuItem extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (trailing != null)
+                if (trailingWidget != null)
+                  trailingWidget!
+                else if (trailing != null)
                   Flexible(
                     child: Text(
                       trailing!,
@@ -1007,9 +962,15 @@ class _ProfileSheetState extends State<_ProfileSheet> {
             _profileOption(
               icon: Icons.language_outlined,
               title: AppStrings.t('language', widget.language),
-              subtitle: widget.language,
+              subtitle: DisplayFormatters.languageDisplayName(widget.language),
               onTap: () {
-                _showComingSoon('Language settings');
+                NeatLanguagePickerSheet.show(
+                  context,
+                  currentLanguage: widget.language,
+                  onSelected: (l) async {
+                    await SessionPrefs.saveLanguage(l);
+                  },
+                );
               },
             ),
 

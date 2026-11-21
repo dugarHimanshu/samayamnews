@@ -22,6 +22,12 @@ class SessionPrefs {
     await prefs.setString(_keyDistrict, district);
   }
 
+  // Changes only the language (state/district stay as chosen).
+  static Future<void> saveLanguage(String language) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyLanguage, language);
+  }
+
   // Returns null if any value is missing (e.g. first-ever launch).
   static Future<Map<String, String>?> loadSelections() async {
     final prefs = await SharedPreferences.getInstance();

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../services/admin_service.dart';
 import '../editor/editor_dashboard_screen.dart';
+import '../editor/story_timelines_overview_screen.dart';
+import 'ad_campaign_planner_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -671,6 +673,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             title: 'Pending submissions',
             subtitle: '${_stats['pending'] ?? 0} stories waiting for review.',
             onTap: _openEditorDesk,
+          ),
+          const SizedBox(height: 8),
+          _actionTile(
+            icon: Icons.timeline_rounded,
+            title: 'Story Timelines & Follow-ups',
+            subtitle: 'Organize related stories into chronological developments.',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const StoryTimelinesOverviewScreen(),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          _actionTile(
+            icon: Icons.campaign_rounded,
+            title: 'Ad Campaign Planner',
+            subtitle: 'Schedule 1-day, 3+1 (4 days), and 4-page auto-sliding ads in advance.',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AdCampaignPlannerScreen(),
+                ),
+              );
+            },
           ),
         ],
       ),

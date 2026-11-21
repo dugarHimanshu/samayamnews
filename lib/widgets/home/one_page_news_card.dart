@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../models/news_article.dart';
+import '../common/app_media_viewer.dart';
 
 class OnePageNewsCard extends StatefulWidget {
   final NewsArticle article;
@@ -56,46 +57,12 @@ class _OnePageNewsCardState extends State<OnePageNewsCard> {
 
   Widget _buildNewsImage() {
     return Positioned.fill(
-      child: Image.network(
-        widget.article.imageUrl,
+      child: AppMediaViewer(
+        url: widget.article.imageUrl,
         fit: BoxFit.cover,
-        loadingBuilder:
-            (
-              BuildContext context,
-              Widget child,
-              ImageChunkEvent? loadingProgress,
-            ) {
-              if (loadingProgress == null) {
-                return child;
-              }
-
-              return Container(
-                color: const Color(0xFFEAEAE7),
-                child: const Center(
-                  child: SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.black54,
-                    ),
-                  ),
-                ),
-              );
-            },
-        errorBuilder:
-            (BuildContext context, Object error, StackTrace? stackTrace) {
-              return Container(
-                color: const Color(0xFFE8E8E5),
-                child: const Center(
-                  child: Icon(
-                    Icons.image_not_supported_outlined,
-                    size: 48,
-                    color: Colors.black38,
-                  ),
-                ),
-              );
-            },
+        autoPlay: true,
+        looping: true,
+        showControls: true,
       ),
     );
   }
@@ -184,7 +151,7 @@ class _OnePageNewsCardState extends State<OnePageNewsCard> {
 
   Widget _buildCategory() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(50),
@@ -194,8 +161,8 @@ class _OnePageNewsCardState extends State<OnePageNewsCard> {
         widget.article.category.toUpperCase(),
         style: GoogleFonts.inter(
           color: Colors.white,
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
           letterSpacing: 1.1,
         ),
       ),
@@ -210,7 +177,7 @@ class _OnePageNewsCardState extends State<OnePageNewsCard> {
       style: GoogleFonts.playfairDisplay(
         color: Colors.white,
         fontSize: 28,
-        height: 1.12,
+        height: 1.15,
         fontWeight: FontWeight.w700,
       ),
     );
@@ -219,13 +186,13 @@ class _OnePageNewsCardState extends State<OnePageNewsCard> {
   Widget _buildDescription() {
     return Text(
       widget.article.description,
-      maxLines: 2,
+      maxLines: 3,
       overflow: TextOverflow.ellipsis,
       style: GoogleFonts.inter(
-        color: Colors.white.withValues(alpha: 0.88),
-        fontSize: 13,
-        height: 1.5,
-        fontWeight: FontWeight.w400,
+        color: Colors.white.withValues(alpha: 0.95),
+        fontSize: 14.5,
+        height: 1.45,
+        fontWeight: FontWeight.w500,
       ),
     );
   }

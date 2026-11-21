@@ -6,9 +6,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/news_article.dart';
 import '../../models/news_submission.dart';
 import '../../services/editor_service.dart';
+import '../../services/story_timeline_service.dart';
+import '../../utils/display_formatters.dart';
 import '../home/onboarding/welcome_screen.dart';
 import 'editor_review_screen.dart';
 import 'published_news_edit_screen.dart';
+import 'story_timeline_linker_screen.dart';
+import 'story_timelines_overview_screen.dart';
+import '../admin/ad_campaign_planner_screen.dart';
 
 // ============================================================
 // FILTERS
@@ -32,6 +37,7 @@ class EditorDashboardScreen extends StatefulWidget {
 class _EditorDashboardScreenState extends State<EditorDashboardScreen>
     with WidgetsBindingObserver {
   final EditorService _editorService = EditorService();
+  final StoryTimelineService _timelineService = StoryTimelineService.instance;
 
   String? _currentEditorId;
 
@@ -77,14 +83,41 @@ class _EditorDashboardScreenState extends State<EditorDashboardScreen>
 
     _currentEditorId = user?.id;
 
+    _timelineService.load();
+    _timelineService.addListener(_onTimelineUpdate);
+
     _loadEverything();
+  }
+
+  void _onTimelineUpdate() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _timelineService.removeListener(_onTimelineUpdate);
 
     super.dispose();
+  }
+
+  void _openTimelineLinker(NewsArticle article) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StoryTimelineLinkerScreen(
+          mainArticle: article,
+          allPublishedNews: _publishedNews,
+        ),
+      ),
+    );
+  }
+
+  void _openTimelinesOverview() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const StoryTimelinesOverviewScreen(),
+      ),
+    );
   }
 
   @override
@@ -926,6 +959,67 @@ class _EditorDashboardScreenState extends State<EditorDashboardScreen>
             ),
           ),
         ),
+        const SizedBox(width: 8),
+        InkWell(
+          onTap: _openTimelinesOverview,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFBFDBFE)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.timeline_rounded, size: 12, color: Colors.blueAccent),
+                SizedBox(width: 4),
+                Text(
+                  'TIMELINES',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.blueAccent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AdCampaignPlannerScreen()),
+            );
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.campaign_rounded, size: 12, color: Color(0xFFD97706)),
+                SizedBox(width: 4),
+                Text(
+                  'ADS PLANNER',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFB45309),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -962,6 +1056,8 @@ class _EditorDashboardScreenState extends State<EditorDashboardScreen>
 
   Widget _buildPublishedNewsCard(NewsArticle article) {
     final isBusy = _busyPublishedArticleId == article.id;
+    final timeline = _timelineService.getTimelineForArticle(article.id);
+    final hasTimeline = timeline != null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1014,6 +1110,32 @@ class _EditorDashboardScreenState extends State<EditorDashboardScreen>
               ),
             ],
           ),
+          if (hasTimeline) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFBFDBFE)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.timeline_rounded, size: 13, color: Colors.blueAccent),
+                  const SizedBox(width: 5),
+                  Flexible(
+                    child: Text(
+                      'THREAD: ${timeline.title} (${timeline.articleIds.length} Linked)',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.blueAccent),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Row(
             children: [
@@ -1026,7 +1148,7 @@ class _EditorDashboardScreenState extends State<EditorDashboardScreen>
               Expanded(
                 child: Text(
                   article.location.isNotEmpty
-                      ? article.location
+                      ? DisplayFormatters.shortDistrict(article.location)
                       : 'Published article',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1054,47 +1176,64 @@ class _EditorDashboardScreenState extends State<EditorDashboardScreen>
                   onPressed: isBusy
                       ? null
                       : () => _editPublishedArticle(article),
-                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  icon: const Icon(Icons.edit_outlined, size: 15),
                   label: const Text(
                     'EDIT',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
                   ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.black87,
                     side: const BorderSide(color: Colors.black26),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: isBusy
                       ? null
-                      : () => _deletePublishedArticle(article),
-                  icon: isBusy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.delete_outline_rounded, size: 16),
+                      : () => _openTimelineLinker(article),
+                  icon: Icon(
+                    hasTimeline ? Icons.timeline_rounded : Icons.link_rounded,
+                    size: 15,
+                    color: hasTimeline ? Colors.blueAccent : Colors.black87,
+                  ),
                   label: Text(
-                    isBusy ? 'WAIT...' : 'DELETE',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    hasTimeline ? 'TIMELINE (${timeline.articleIds.length})' : 'LINK STORY',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                      color: hasTimeline ? Colors.blueAccent : Colors.black87,
+                    ),
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.redAccent,
-                    side: const BorderSide(color: Colors.redAccent),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: BorderSide(color: hasTimeline ? Colors.blueAccent : Colors.black26),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: isBusy
+                    ? null
+                    : () => _deletePublishedArticle(article),
+                tooltip: 'Delete article',
+                icon: isBusy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent),
               ),
             ],
           ),

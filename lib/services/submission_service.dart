@@ -21,20 +21,31 @@ class SubmissionService {
     return (res['used'] as int?) ?? 0;
   }
 
-  /// Uploads an image straight to storage through a signed URL issued by the API,
-  /// then asks the API to process it (resize to WebP, strip GPS/EXIF).
-  /// Returns the media id to send as `coverMediaId`.
-  Future<String> uploadImage(Uint8List bytes, {required String fileName}) async {
+  /// Uploads a photo or video straight to storage through a signed URL issued by the API,
+  /// then asks the API to process it (photos: resize to WebP and strip GPS/EXIF;
+  /// videos: verified and published as-is). Returns the media id to send as `coverMediaId`.
+  Future<String> uploadMedia(Uint8List bytes, {required String fileName, bool isVideo = false}) async {
     final lower = fileName.toLowerCase();
-    final contentType = lower.endsWith('.png')
-        ? 'image/png'
-        : lower.endsWith('.webp')
-            ? 'image/webp'
-            : lower.endsWith('.heic')
-                ? 'image/heic'
-                : 'image/jpeg';
+    final String contentType;
+    if (isVideo) {
+      contentType = lower.endsWith('.mov')
+          ? 'video/quicktime'
+          : lower.endsWith('.webm')
+              ? 'video/webm'
+              : lower.endsWith('.3gp')
+                  ? 'video/3gpp'
+                  : 'video/mp4';
+    } else {
+      contentType = lower.endsWith('.png')
+          ? 'image/png'
+          : lower.endsWith('.webp')
+              ? 'image/webp'
+              : lower.endsWith('.heic')
+                  ? 'image/heic'
+                  : 'image/jpeg';
+    }
     final ticket = await _api.post('/uploads', {
-      'kind': 'image',
+      'kind': isVideo ? 'video' : 'image',
       'contentType': contentType,
       'sizeBytes': bytes.length,
     }) as Map;
@@ -44,12 +55,15 @@ class SubmissionService {
       body: bytes,
     );
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw Exception('Image upload failed (${res.statusCode}). Please try again.');
+      throw Exception('Upload failed (${res.statusCode}). Please try again.');
     }
     final mediaId = ticket['mediaId'].toString();
     await _api.post('/uploads/$mediaId/complete');
     return mediaId;
   }
+
+  Future<String> uploadImage(Uint8List bytes, {required String fileName}) =>
+      uploadMedia(bytes, fileName: fileName);
 
   /// Submits a story. Location/category names are converted to the API's ids.
   Future<void> submitNews(NewsSubmission s) async {

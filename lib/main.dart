@@ -10,6 +10,8 @@ import 'services/auth_service.dart';
 import 'services/category_repository.dart';
 import 'services/location_repository.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
+import 'services/story_timeline_service.dart';
+import 'services/ad_campaign_service.dart';
 import 'screens/home/onboarding/welcome_screen.dart';
 import 'screens/main/main_shell.dart';
 import 'screens/editor/editor_dashboard_screen.dart';
@@ -23,6 +25,8 @@ void main() async {
   );
 
   await AppThemeState.instance.loadTheme();
+  await StoryTimelineService.instance.load();
+  await AdCampaignService.instance.load();
 
   // Reference data from the API (states/districts, categories). Non-fatal: screens retry on demand.
   await Future.wait([

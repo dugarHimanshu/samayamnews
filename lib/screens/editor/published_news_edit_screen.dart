@@ -6,8 +6,11 @@ import '../../data/location_data.dart';
 import '../../services/location_repository.dart';
 import '../../models/news_article.dart';
 import '../../services/editor_service.dart';
+import '../../services/story_timeline_service.dart';
+import '../../widgets/common/app_media_viewer.dart';
 import '../contributor/news_submission_form.dart'
     show kNewsCategories, kAllowedStates;
+import 'story_timeline_linker_screen.dart';
 
 class PublishedNewsEditScreen extends StatefulWidget {
   final NewsArticle article;
@@ -288,23 +291,16 @@ class _PublishedNewsEditScreenState extends State<PublishedNewsEditScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(20),
-                        child: Image.network(
-                          widget.article.imageUrl,
+                        child: SizedBox(
                           height: 220,
                           width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              height: 220,
-                              color: const Color(0xFFEDEDEB),
-                              alignment: Alignment.center,
-                              child: const Icon(
-                                Icons.image_outlined,
-                                size: 42,
-                                color: Colors.black38,
-                              ),
-                            );
-                          },
+                          child: AppMediaViewer(
+                            url: widget.article.imageUrl,
+                            fit: BoxFit.cover,
+                            autoPlay: false,
+                            looping: true,
+                            showControls: true,
+                          ),
                         ),
                       ),
                       Positioned(
@@ -432,6 +428,23 @@ class _PublishedNewsEditScreenState extends State<PublishedNewsEditScreen> {
                   Expanded(child: _field('Author', _authorController)),
                 ],
               ),
+
+              const SizedBox(height: 24),
+
+              // ==================================================
+              // SECTION: STORY TIMELINE & FOLLOW-UPS
+              // ==================================================
+              const Text(
+                'STORY TIMELINE & DEVELOPING THREADS',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
+                  color: Colors.black45,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildStoryTimelineSection(),
             ],
           ),
         ),
@@ -522,6 +535,139 @@ class _PublishedNewsEditScreenState extends State<PublishedNewsEditScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildStoryTimelineSection() {
+    return ListenableBuilder(
+      listenable: StoryTimelineService.instance,
+      builder: (context, _) {
+        final timeline = StoryTimelineService.instance.getTimelineForArticle(widget.article.id);
+        final hasTimeline = timeline != null;
+
+        return Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: hasTimeline
+                  ? const Color(0xFF1565C0).withValues(alpha: 0.3)
+                  : Colors.black.withValues(alpha: 0.06),
+              width: hasTimeline ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: hasTimeline
+                          ? const Color(0xFF1565C0).withValues(alpha: 0.12)
+                          : Colors.black.withValues(alpha: 0.05),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.timeline_rounded,
+                      size: 20,
+                      color: hasTimeline ? const Color(0xFF1565C0) : Colors.black54,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          hasTimeline ? 'Linked Story Timeline' : 'No Timeline Linked',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: hasTimeline ? const Color(0xFF1565C0) : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          hasTimeline
+                              ? '${timeline.articleIds.length} articles organized in chronological order'
+                              : 'Link subsequent follow-up reports as the story develops',
+                          style: const TextStyle(fontSize: 11.5, color: Colors.black54),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (hasTimeline) ...[
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F9FC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.black.withValues(alpha: 0.04)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'TIMELINE TOPIC',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: Colors.black45,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        timeline.title,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => StoryTimelineLinkerScreen(mainArticle: widget.article),
+                      ),
+                    );
+                  },
+                  icon: Icon(
+                    hasTimeline ? Icons.edit_note_rounded : Icons.add_link_rounded,
+                    size: 18,
+                  ),
+                  label: Text(
+                    hasTimeline ? 'Manage Linked Follow-ups' : 'Link Related News Articles',
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF1565C0),
+                    side: const BorderSide(color: Color(0xFF1565C0)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../models/news_article.dart';
+import '../common/app_media_viewer.dart';
 
 class NewsCard extends StatelessWidget {
   final NewsArticle article;
@@ -63,20 +64,16 @@ class NewsCard extends StatelessWidget {
   Widget _buildImage() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(17),
-      child: Image.network(
-        article.imageUrl,
+      child: SizedBox(
         width: 105,
         height: 125,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            width: 105,
-            height: 125,
-            color: Colors.grey.shade200,
-            alignment: Alignment.center,
-            child: const Icon(Icons.image_outlined, color: Colors.black38),
-          );
-        },
+        child: AppMediaViewer(
+          url: article.imageUrl,
+          fit: BoxFit.cover,
+          autoPlay: false,
+          looping: true,
+          showControls: true,
+        ),
       ),
     );
   }
