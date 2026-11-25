@@ -12,6 +12,7 @@ import { errorHandler, notFoundHandler } from './lib/errors.js'
 import { logger } from './lib/logger.js'
 import { adminRouter } from './routes/admin.js'
 import { applicationsRouter } from './routes/applications.js'
+import { communityRouter } from './routes/community.js'
 import { eventsRouter } from './routes/events.js'
 import { meRouter } from './routes/me.js'
 import { newsroomRouter } from './routes/newsroom.js'
@@ -56,6 +57,7 @@ export function createApp() {
   v1.use(optionalAuth)
   v1.use(publicRouter)
   v1.use(applicationsRouter)
+  v1.use(communityRouter)
   v1.use(eventsRouter)
   v1.use(meRouter)
   v1.use(newsroomRouter)

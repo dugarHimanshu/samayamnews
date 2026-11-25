@@ -30,7 +30,7 @@ function imageDto(m: Pick<MediaRow, 'variants' | 'status'> | null | undefined): 
 }
 
 export async function toArticleDtos(
-  rows: { article: ArticleRow; cover: Pick<MediaRow, 'variants' | 'status'> | null; likes?: number | null }[],
+  rows: { article: ArticleRow; cover: Pick<MediaRow, 'variants' | 'status'> | null; likes?: number | null; comments?: number | null }[],
   opts: { withBody: boolean },
 ) {
   const [locs, cats] = await Promise.all([locationIndex(), categoryIndex()])
@@ -38,7 +38,7 @@ export async function toArticleDtos(
     const l = id ? locs.get(id) : undefined
     return l ? { id: l.id, nameEn: l.nameEn, nameTe: l.nameTe } : null
   }
-  return rows.map(({ article: a, cover, likes }) => {
+  return rows.map(({ article: a, cover, likes, comments }) => {
     const c = cats.get(a.categoryId)
     return {
       id: a.id,
@@ -54,19 +54,24 @@ export async function toArticleDtos(
       isBreaking: a.isBreaking,
       publishedAt: a.publishedAt.toISOString(),
       updatedAt: a.updatedAt.toISOString(),
+      relatedArticleId: a.relatedArticleId,
+      relatedAnchor: a.relatedAnchor,
       ...(likes !== undefined ? { likeCount: Number(likes ?? 0) } : {}),
+      ...(comments !== undefined ? { commentCount: Number(comments ?? 0) } : {}),
     }
   })
 }
 export type ArticleDto = Awaited<ReturnType<typeof toArticleDtos>>[number]
 
 const selectArticle = { article: articles, cover: { variants: media.variants, status: media.status } }
+const selectWithStats = { ...selectArticle, likes: articleStats.likes, comments: articleStats.comments }
 
 async function fetchArticles(where: SQL | undefined, limit: number) {
   return db
-    .select(selectArticle)
+    .select(selectWithStats)
     .from(articles)
     .leftJoin(media, eq(media.id, articles.coverMediaId))
+    .leftJoin(articleStats, eq(articleStats.articleId, articles.id))
     .where(where)
     .orderBy(desc(articles.publishedAt), desc(articles.id))
     .limit(limit)
@@ -134,7 +139,7 @@ export async function getFeed(params: { districtId?: number; cursor?: string; li
     : null
 
   const dtos = await toArticleDtos(out, { withBody: false })
-  const items = await interleave(dtos, cur.n, cfg)
+  const items = await interleave(dtos, cur.n, cfg, params.districtId)
   return { items, nextCursor }
 }
 
@@ -157,7 +162,23 @@ export async function activeAds() {
   }))
 }
 
-export function adDto({ ad, image }: Awaited<ReturnType<typeof activeAds>>['rows'][number]) {
+type AdRow = Awaited<ReturnType<typeof activeAds>>['rows'][number]
+
+/** Ads for a reader in `districtId`: everywhere-ads, ads for their state, and ads for their district. */
+export async function adsForDistrict(districtId?: number) {
+  const { rows } = await activeAds()
+  if (!districtId) return rows.filter((r) => r.ad.targetScope === 'all')
+  const d = (await locationIndex()).get(districtId)
+  const stateId = d?.stateId ?? d?.parentId ?? null
+  return rows.filter(
+    ({ ad }) =>
+      ad.targetScope === 'all' ||
+      (ad.targetScope === 'state' && ad.targetStateId === stateId) ||
+      (ad.targetScope === 'district' && ad.targetDistrictId === districtId),
+  )
+}
+
+export function adDto({ ad, image }: AdRow) {
   return {
     id: ad.id,
     sponsor: ad.sponsor,
@@ -167,6 +188,14 @@ export function adDto({ ad, image }: Awaited<ReturnType<typeof activeAds>>['rows
     ctaText: ad.ctaText,
     ctaUrl: ad.ctaUrl,
     imageUrl: imageDto(image)?.medium ?? ad.imageUrl,
+    slides: ad.slides ?? null,
+    scheduleType: ad.scheduleType,
+    category: ad.category,
+    startsAt: ad.startsAt?.toISOString() ?? null,
+    endsAt: ad.endsAt?.toISOString() ?? null,
+    targetScope: ad.targetScope,
+    targetStateId: ad.targetStateId,
+    targetDistrictId: ad.targetDistrictId,
   }
 }
 
@@ -206,9 +235,9 @@ type FeedItem =
   | { type: 'ad'; ad: ReturnType<typeof adDto> }
   | { type: 'magazine'; magazine: Awaited<ReturnType<typeof magazineDto>> }
 
-async function interleave(list: ArticleDto[], servedBefore: number, cfg: Awaited<ReturnType<typeof feedConfig>>) {
+async function interleave(list: ArticleDto[], servedBefore: number, cfg: Awaited<ReturnType<typeof feedConfig>>, districtId?: number) {
   const [adRows, magRows] = await Promise.all([
-    cfg.adsEnabled && cfg.adEvery > 0 ? activeAds().then((r) => r.rows) : Promise.resolve([]),
+    cfg.adsEnabled && cfg.adEvery > 0 ? adsForDistrict(districtId) : Promise.resolve([] as AdRow[]),
     cfg.magazineEvery > 0 ? publishedMagazines().then((r) => r.rows) : Promise.resolve([]),
   ])
   const items: FeedItem[] = []
@@ -267,7 +296,7 @@ async function page(rows: Awaited<ReturnType<typeof fetchArticles>>, limit: numb
 
 export async function getArticle(id: string, opts: { includeUnpublished?: boolean } = {}) {
   const rows = await db
-    .select({ ...selectArticle, likes: articleStats.likes })
+    .select(selectWithStats)
     .from(articles)
     .leftJoin(media, eq(media.id, articles.coverMediaId))
     .leftJoin(articleStats, eq(articleStats.articleId, articles.id))

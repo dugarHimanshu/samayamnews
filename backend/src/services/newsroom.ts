@@ -28,12 +28,24 @@ export const storyFields = z.object({
   coverMediaId: z.string().uuid().nullish(),
   authorName: z.string().trim().min(2).max(120),
   source: z.string().trim().max(200).nullish(),
+  // Follow-up link: tapping `relatedAnchor` in the body opens the earlier article.
+  relatedArticleId: z.string().uuid().nullish(),
+  relatedAnchor: z.string().trim().max(120).nullish(),
 })
 export type StoryFields = z.infer<typeof storyFields>
 
 /** Checks the category exists and that the location chain is consistent (village ∈ mandal ∈ district ∈ state). */
 export async function assertStoryRefs(f: Partial<StoryFields>, current?: Partial<StoryFields>) {
   const merged = { ...current, ...f }
+  if (f.relatedArticleId !== undefined || f.relatedAnchor !== undefined || f.body !== undefined) {
+    if (merged.relatedArticleId) {
+      const [rel] = await db.select({ id: articles.id }).from(articles).where(eq(articles.id, merged.relatedArticleId)).limit(1)
+      if (!rel) throw badRequest('The linked earlier story was not found')
+      const anchor = merged.relatedAnchor?.trim()
+      if (!anchor) throw badRequest('Choose the word that should open the earlier story')
+      if (!(merged.body ?? '').includes(anchor)) throw badRequest(`The word "${anchor}" must appear in the story text`)
+    }
+  }
   if (f.categoryId !== undefined) {
     const cats = await categoryIndex()
     if (!cats.has(f.categoryId)) throw badRequest('Unknown category')
@@ -338,6 +350,8 @@ export async function publishSubmission(user: AuthUser, id: string, opts: { vers
         coverMediaId: s.coverMediaId,
         authorName: s.authorName,
         source: s.source,
+        relatedArticleId: s.relatedArticleId,
+        relatedAnchor: s.relatedArticleId ? s.relatedAnchor : null,
         isBreaking: opts.isBreaking,
         publishedBy: user.id,
       })

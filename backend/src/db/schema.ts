@@ -32,6 +32,8 @@ export const submissionStatusEnum = app.enum('submission_status', ['pending', 'i
 export const articleStatusEnum = app.enum('article_status', ['live', 'unpublished'])
 export const mediaKindEnum = app.enum('media_kind', ['image', 'pdf', 'video'])
 export const applicationStatusEnum = app.enum('application_status', ['pending', 'approved', 'rejected'])
+export const adTargetScopeEnum = app.enum('ad_target_scope', ['all', 'state', 'district'])
+export const wishKindEnum = app.enum('wish_kind', ['birthday', 'anniversary'])
 export const mediaStatusEnum = app.enum('media_status', ['pending', 'ready', 'failed'])
 export const submissionEventEnum = app.enum('submission_event_type', [
   'submitted',
@@ -91,6 +93,8 @@ export const profiles = app.table(
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
     deletedAt: ts('deleted_at'),
+    // Set when an admin removes a reporter/freelancer: they can no longer sign in or submit.
+    disabledAt: ts('disabled_at'),
   },
   (t) => [index('profiles_role_idx').on(t.role)],
 )
@@ -170,6 +174,9 @@ const storyColumns = () => ({
   coverMediaId: uuid('cover_media_id').references(() => media.id),
   authorName: text('author_name').notNull(),
   source: text('source'),
+  // Follow-up linking: `relatedAnchor` (a word/phrase in the body) opens `relatedArticleId`.
+  relatedArticleId: uuid('related_article_id'),
+  relatedAnchor: text('related_anchor'),
 })
 
 export const submissions = app.table(
@@ -256,7 +263,26 @@ export const articleStats = app.table('article_stats', {
   views: bigint('views', { mode: 'number' }).notNull().default(0),
   likes: bigint('likes', { mode: 'number' }).notNull().default(0),
   shares: bigint('shares', { mode: 'number' }).notNull().default(0),
+  comments: bigint('comments', { mode: 'number' }).notNull().default(0),
 })
+
+export const comments = app.table(
+  'comments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    articleId: uuid('article_id')
+      .notNull()
+      .references(() => articles.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    body: text('body').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    deletedAt: ts('deleted_at'),
+    deletedBy: uuid('deleted_by').references(() => profiles.id),
+  },
+  (t) => [index('comments_article_idx').on(t.articleId, t.createdAt.desc(), t.id.desc()).where(sql`deleted_at IS NULL`)],
+)
 
 // ---------------------------------------------------------------- reader state
 
@@ -328,6 +354,14 @@ export const ads = app.table('ads', {
   weight: integer('weight').notNull().default(1),
   startsAt: ts('starts_at'),
   endsAt: ts('ends_at'),
+  // 4-page sliding campaigns: [{ pageIndex, tag, headline, description, imageUrl, highlightBadge }]
+  slides: jsonb('slides').$type<Record<string, unknown>[]>(),
+  scheduleType: text('schedule_type'), // oneDay | threePlusOne | custom
+  category: text('category'),
+  // Where the ad is shown: everywhere, one state, or one district.
+  targetScope: adTargetScopeEnum('target_scope').notNull().default('all'),
+  targetStateId: integer('target_state_id').references(() => locations.id),
+  targetDistrictId: integer('target_district_id').references(() => locations.id),
   isActive: boolean('is_active').notNull().default(true),
   createdBy: uuid('created_by').references(() => profiles.id),
   createdAt: ts('created_at').notNull().defaultNow(),
@@ -344,6 +378,29 @@ export const adStatsDaily = app.table(
     clicks: bigint('clicks', { mode: 'number' }).notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.adId, t.day] })],
+)
+
+/** Birthday / wedding-anniversary wishes posters sent by readers; shown after an editor approves. */
+export const wishes = app.table(
+  'wishes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: wishKindEnum('kind').notNull(),
+    photoMediaId: uuid('photo_media_id').references(() => media.id),
+    recipientName: text('recipient_name').notNull(),
+    message: text('message').notNull(),
+    fromNames: text('from_names').notNull(),
+    districtId: integer('district_id').references(() => locations.id),
+    status: applicationStatusEnum('status').notNull().default('pending'),
+    submittedBy: uuid('submitted_by')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    reviewedBy: uuid('reviewed_by').references(() => profiles.id),
+    reviewedAt: ts('reviewed_at'),
+    rejectionReason: text('rejection_reason'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('wishes_status_idx').on(t.status, t.createdAt.desc())],
 )
 
 export const appConfig = app.table('app_config', {

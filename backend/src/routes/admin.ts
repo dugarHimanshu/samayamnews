@@ -2,13 +2,14 @@ import { Router } from 'express'
 import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/client.js'
-import { adStatsDaily, ads, appConfig, magazines, profiles, roleEnum } from '../db/schema.js'
+import { adStatsDaily, ads, appConfig, locations, magazines, profiles, roleEnum } from '../db/schema.js'
 import { forgetUser, requireAuth, requireRole } from '../lib/auth.js'
 import { invalidate, noStore } from '../lib/cache.js'
 import { decodeCursor, encodeCursor } from '../lib/cursor.js'
 import { badRequest, notFound } from '../lib/errors.js'
 import { limitSchema, parseBody, parseParams, parseQuery, uuidParam } from '../lib/validate.js'
 import { listApplications, reviewApplication } from '../services/applications.js'
+import { adminArticles, contributors, deleteArticle, removeContributor } from '../services/moderation.js'
 import { reviewInput } from './applications.js'
 
 export const adminRouter = Router()
@@ -75,6 +76,30 @@ adminRouter.patch('/users/:id', async (req, res) => {
   res.json(p)
 })
 
+// ------------------------------------------------------------------ reporters / freelancers
+
+adminRouter.get('/contributors', async (_req, res) => {
+  res.json({ items: await contributors() })
+})
+
+/** Remove a reporter/freelancer: they can no longer sign in or upload; their published news stays. */
+adminRouter.post('/users/:id/remove', async (req, res) => {
+  await removeContributor(req.user!, parseParams(req, uuidParam).id)
+  res.status(204).end()
+})
+
+// ------------------------------------------------------------------ news list (permanent delete)
+
+adminRouter.get('/articles', async (req, res) => {
+  const q = parseQuery(req, z.object({ q: z.string().trim().max(100).optional(), cursor: z.string().max(500).optional(), limit: limitSchema }))
+  res.json(await adminArticles(q))
+})
+
+adminRouter.delete('/articles/:id', async (req, res) => {
+  await deleteArticle(req.user!, parseParams(req, uuidParam).id)
+  res.status(204).end()
+})
+
 // ------------------------------------------------------------------ reporter / freelancer applications
 
 adminRouter.get('/applications', async (req, res) => {
@@ -105,14 +130,46 @@ const adInput = z.object({
   startsAt: z.coerce.date().nullish(),
   endsAt: z.coerce.date().nullish(),
   isActive: z.boolean().default(true),
+  // 4-page sliding campaign + where it should be shown
+  slides: z
+    .array(
+      z.object({
+        pageIndex: z.number().int().min(1).max(4),
+        tag: z.string().trim().max(60).default(''),
+        headline: z.string().trim().max(200).default(''),
+        description: z.string().trim().max(500).default(''),
+        imageUrl: z.string().trim().max(1000).default(''),
+        highlightBadge: z.string().trim().max(80).nullish(),
+      }),
+    )
+    .max(4)
+    .nullish(),
+  scheduleType: z.enum(['oneDay', 'threePlusOne', 'custom']).nullish(),
+  category: z.string().trim().max(60).nullish(),
+  targetScope: z.enum(['all', 'state', 'district']).default('all'),
+  targetStateId: z.number().int().positive().nullish(),
+  targetDistrictId: z.number().int().positive().nullish(),
 })
+
+/** Checks the area matches the scope (a state for 'state', a district for 'district') and clears the rest. */
+async function normaliseTarget<T extends { targetScope?: 'all' | 'state' | 'district'; targetStateId?: number | null; targetDistrictId?: number | null }>(b: T) {
+  if (b.targetScope === undefined) return b
+  if (b.targetScope === 'all') return { ...b, targetStateId: null, targetDistrictId: null }
+  const id = b.targetScope === 'state' ? b.targetStateId : b.targetDistrictId
+  if (!id) throw badRequest(b.targetScope === 'state' ? 'Choose a state for this ad' : 'Choose a district for this ad')
+  const [loc] = await db.select().from(locations).where(eq(locations.id, id)).limit(1)
+  if (!loc || loc.level !== b.targetScope) throw badRequest(`Unknown ${b.targetScope}`)
+  return b.targetScope === 'state'
+    ? { ...b, targetStateId: id, targetDistrictId: null }
+    : { ...b, targetDistrictId: id, targetStateId: loc.stateId ?? loc.parentId }
+}
 
 adminRouter.get('/ads', async (_req, res) => {
   res.json({ items: await db.select().from(ads).orderBy(desc(ads.createdAt)) })
 })
 
 adminRouter.post('/ads', async (req, res) => {
-  const body = parseBody(req, adInput)
+  const body = await normaliseTarget(parseBody(req, adInput))
   const [ad] = await db.insert(ads).values({ ...body, createdBy: req.user!.id }).returning()
   invalidate('feed:')
   res.status(201).json(ad)
@@ -120,7 +177,7 @@ adminRouter.post('/ads', async (req, res) => {
 
 adminRouter.patch('/ads/:id', async (req, res) => {
   const { id } = parseParams(req, uuidParam)
-  const body = parseBody(req, adInput.partial())
+  const body = await normaliseTarget(parseBody(req, adInput.partial()))
   const [ad] = await db.update(ads).set(body).where(eq(ads.id, id)).returning()
   if (!ad) throw notFound('Ad not found')
   invalidate('feed:')
@@ -129,7 +186,7 @@ adminRouter.patch('/ads/:id', async (req, res) => {
 
 adminRouter.delete('/ads/:id', async (req, res) => {
   const { id } = parseParams(req, uuidParam)
-  await db.update(ads).set({ isActive: false }).where(eq(ads.id, id))
+  await db.delete(ads).where(eq(ads.id, id))
   invalidate('feed:')
   res.status(204).end()
 })

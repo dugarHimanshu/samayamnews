@@ -5,7 +5,7 @@ import { LRUCache } from 'lru-cache'
 import { config } from '../config.js'
 import { db } from '../db/client.js'
 import { profiles } from '../db/schema.js'
-import { forbidden, unauthorized } from './errors.js'
+import { forbidden, HttpError, unauthorized } from './errors.js'
 
 export type Role = (typeof profiles.$inferSelect)['role']
 export interface AuthUser {
@@ -57,6 +57,7 @@ async function loadUser(id: string, email: string | null): Promise<AuthUser> {
     row ??= (await db.select().from(profiles).where(eq(profiles.id, id)).limit(1))[0]
   }
   if (!row || row.deletedAt) throw unauthorized('Account not found')
+  if (row.disabledAt) throw new HttpError(403, 'account_disabled', 'This account has been removed by the admin.')
   const user: AuthUser = { id, email: row.email ?? email, role: row.role }
   profileCache.set(id, user)
   return user
