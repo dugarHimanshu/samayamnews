@@ -69,6 +69,13 @@ class AdvertisementCampaign {
   final String ctaUrl;
   final bool isEnabled;
   final DateTime createdAt;
+  // Where the ad is shown: 'all' (both Telugu states), 'state' or 'district'.
+  final String targetScope;
+  final int? targetStateId;
+  final int? targetDistrictId;
+  final String targetLabel; // e.g. "Telangana", "Karimnagar district"
+
+  bool get isServerSaved => RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-').hasMatch(id);
 
   const AdvertisementCampaign({
     required this.id,
@@ -82,7 +89,117 @@ class AdvertisementCampaign {
     required this.ctaUrl,
     this.isEnabled = true,
     required this.createdAt,
+    this.targetScope = 'all',
+    this.targetStateId,
+    this.targetDistrictId,
+    this.targetLabel = 'Telangana + Andhra Pradesh',
   });
+
+  AdvertisementCampaign copyWith({bool? isEnabled, String? id}) => AdvertisementCampaign(
+        id: id ?? this.id,
+        sponsor: sponsor,
+        category: category,
+        scheduleType: scheduleType,
+        startDate: startDate,
+        endDate: endDate,
+        slides: slides,
+        ctaText: ctaText,
+        ctaUrl: ctaUrl,
+        isEnabled: isEnabled ?? this.isEnabled,
+        createdAt: createdAt,
+        targetScope: targetScope,
+        targetStateId: targetStateId,
+        targetDistrictId: targetDistrictId,
+        targetLabel: targetLabel,
+      );
+
+  /// Body for POST/PATCH /v1/admin/ads (start of the first day → end of the last day).
+  Map<String, dynamic> toApi() {
+    final first = slides.isNotEmpty ? slides.first : null;
+    final start = DateTime(startDate.year, startDate.month, startDate.day);
+    final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+    String? url(String u) => Uri.tryParse(u)?.hasScheme == true ? u : null;
+    return {
+      'sponsor': sponsor,
+      'headline': (first?.headline.trim().isNotEmpty ?? false) ? first!.headline.trim() : sponsor,
+      'description': first?.description,
+      'tag': first?.tag,
+      'ctaText': ctaText.isEmpty ? null : ctaText,
+      'ctaUrl': url(ctaUrl),
+      'imageUrl': url(first?.imageUrl ?? ''),
+      'startsAt': start.toUtc().toIso8601String(),
+      'endsAt': end.toUtc().toIso8601String(),
+      'isActive': isEnabled,
+      'slides': [
+        for (final s in slides)
+          {
+            'pageIndex': s.pageIndex,
+            'tag': s.tag,
+            'headline': s.headline,
+            'description': s.description,
+            'imageUrl': s.imageUrl,
+            'highlightBadge': s.highlightBadge,
+          }
+      ],
+      'scheduleType': scheduleType.name,
+      'category': category,
+      'targetScope': targetScope,
+      'targetStateId': targetStateId,
+      'targetDistrictId': targetDistrictId,
+    };
+  }
+
+  /// From an ad served by the API (feed item or admin list row).
+  factory AdvertisementCampaign.fromApi(Map<String, dynamic> j, {String Function(int? stateId, int? districtId, String scope)? labelFor}) {
+    final rawSlides = (j['slides'] as List?) ?? const [];
+    final slides = <AdSlide>[
+      for (final r in rawSlides)
+        AdSlide(
+          pageIndex: ((r as Map)['pageIndex'] as num?)?.toInt() ?? 1,
+          tag: (r['tag'] ?? '').toString(),
+          headline: (r['headline'] ?? '').toString(),
+          description: (r['description'] ?? '').toString(),
+          imageUrl: (r['imageUrl'] ?? '').toString(),
+          highlightBadge: r['highlightBadge']?.toString(),
+        ),
+    ];
+    if (slides.isEmpty) {
+      slides.add(AdSlide(
+        pageIndex: 1,
+        tag: (j['tag'] ?? 'SPONSORED').toString(),
+        headline: (j['headline'] ?? '').toString(),
+        description: (j['description'] ?? '').toString(),
+        imageUrl: (j['imageUrl'] ?? '').toString(),
+      ));
+    }
+    final type = switch (j['scheduleType']?.toString()) {
+      'oneDay' => AdScheduleType.oneDay,
+      'threePlusOne' => AdScheduleType.threePlusOne,
+      _ => AdScheduleType.custom,
+    };
+    final start = DateTime.tryParse((j['startsAt'] ?? '').toString())?.toLocal() ?? DateTime.now().subtract(const Duration(days: 1));
+    final end = DateTime.tryParse((j['endsAt'] ?? '').toString())?.toLocal() ?? DateTime.now().add(const Duration(days: 365));
+    final scope = (j['targetScope'] ?? 'all').toString();
+    final stateId = (j['targetStateId'] as num?)?.toInt();
+    final districtId = (j['targetDistrictId'] as num?)?.toInt();
+    return AdvertisementCampaign(
+      id: (j['id'] ?? '').toString(),
+      sponsor: (j['sponsor'] ?? 'Sponsor').toString(),
+      category: (j['category'] ?? 'General').toString(),
+      scheduleType: type,
+      startDate: start,
+      endDate: end,
+      slides: slides,
+      ctaText: (j['ctaText'] ?? 'Learn More').toString(),
+      ctaUrl: (j['ctaUrl'] ?? '').toString(),
+      isEnabled: j['isActive'] as bool? ?? true,
+      createdAt: DateTime.tryParse((j['createdAt'] ?? '').toString()) ?? DateTime.now(),
+      targetScope: scope,
+      targetStateId: stateId,
+      targetDistrictId: districtId,
+      targetLabel: labelFor?.call(stateId, districtId, scope) ?? (scope == 'all' ? 'Telangana + Andhra Pradesh' : scope),
+    );
+  }
 
   /// Total duration in days.
   int get totalDays {

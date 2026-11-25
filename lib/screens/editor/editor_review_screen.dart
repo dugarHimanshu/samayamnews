@@ -8,6 +8,9 @@ import '../../data/location_data.dart';
 import '../../services/location_repository.dart';
 import '../../models/news_submission.dart';
 import '../../services/editor_service.dart';
+import '../../models/news_article.dart';
+import '../../services/news_service.dart';
+import '../home/news_story_page.dart';
 import '../../widgets/common/app_media_viewer.dart';
 import '../contributor/news_submission_form.dart'
     show kNewsCategories, kAllowedStates;
@@ -43,6 +46,14 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
 
   bool _claiming = true;
   bool _busy = false;
+
+  // Follow-up link + mandatory preview before publishing
+  String? _relatedId;
+  String? _relatedTitle;
+  late final TextEditingController _anchorController;
+  bool _dirty = true; // unsaved changes since the last save
+  bool _previewed = false; // the saved version has been previewed
+  bool get _readyToPublish => !_dirty && _previewed;
 
   late final AnimationController _animController;
   late final Animation<double> _fadeAnimation;
@@ -111,6 +122,17 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
     _state = s.state;
     _district = s.district;
 
+    _relatedId = s.relatedArticleId;
+    _anchorController = TextEditingController(text: s.relatedAnchor ?? '');
+    if (_relatedId != null) {
+      NewsRepository.instance.getArticle(_relatedId!).then((a) {
+        if (mounted && a != null) setState(() => _relatedTitle = a.title);
+      });
+    }
+    for (final c in [_titleController, _descriptionController, _contentController, _sourceController, _authorController, _anchorController]) {
+      c.addListener(_markDirty);
+    }
+
     _initializeLocationFromSubmission();
 
     _claim();
@@ -173,6 +195,7 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
     _authorController.dispose();
     _regionController.dispose();
     _villageController.dispose();
+    _anchorController.dispose();
 
     super.dispose();
   }
@@ -314,7 +337,120 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
       'district': _district,
       'region': regionValue,
       'village': villageValue,
+      'related_article_id': _relatedId,
+      'related_anchor': _anchorController.text.trim(),
     };
+  }
+
+  void _markDirty() {
+    if (!_dirty || _previewed) setState(() {
+      _dirty = true;
+      _previewed = false;
+    });
+  }
+
+  // ============================================================
+  // PREVIEW — exactly the page readers will see
+  // ============================================================
+
+  Future<void> _openPreview() async {
+    final f = _currentFields();
+    final now = DateTime.now();
+    final article = NewsArticle(
+      id: '',
+      title: f['title'] ?? '',
+      description: f['description'] ?? '',
+      category: _category,
+      author: f['author'] ?? '',
+      source: f['source'] ?? '',
+      publishedAt: '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}',
+      imageUrl: widget.submission.imageUrl ?? '',
+      location: [f['village'], f['region'], _district, _state].whereType<String>().where((x) => x.isNotEmpty).join(' • '),
+      content: f['content'] ?? '',
+      districtName: _district,
+      stateName: _state,
+      relatedArticleId: _relatedId,
+      relatedAnchor: _relatedId == null ? null : _anchorController.text.trim(),
+    );
+    final ok = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => NewsStoryPage(article: article, selectedLanguage: 'english', preview: true)),
+    );
+    if (!mounted) return;
+    if (ok == true) {
+      setState(() => _previewed = true);
+      _showMessage('Preview checked. You can publish now.');
+    }
+  }
+
+  // ============================================================
+  // LINK TO AN EARLIER STORY
+  // ============================================================
+
+  Future<void> _pickRelated() async {
+    final picked = await showModalBottomSheet<NewsArticle>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const _RelatedStoryPicker(),
+    );
+    if (picked == null) return;
+    setState(() {
+      _relatedId = picked.id;
+      _relatedTitle = picked.title;
+    });
+    _markDirty();
+  }
+
+  Widget _relatedSection() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: const Color(0xFFFFF8E1), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFFFE082))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('LINK TO AN EARLIER STORY (optional)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.1, color: Color(0xFFE65100))),
+          const SizedBox(height: 6),
+          const Text('Readers tap the highlighted word in this story to open the earlier news.', style: TextStyle(fontSize: 12, color: Colors.black54)),
+          const SizedBox(height: 10),
+          if (_relatedId == null)
+            OutlinedButton.icon(onPressed: _pickRelated, icon: const Icon(Icons.link_rounded), label: const Text('Choose earlier story'))
+          else ...[
+            Row(children: [
+              const Icon(Icons.article_outlined, size: 18, color: Color(0xFFE65100)),
+              const SizedBox(width: 6),
+              Expanded(child: Text(_relatedTitle ?? 'Selected story', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700))),
+              TextButton(onPressed: _pickRelated, child: const Text('Change')),
+              IconButton(
+                tooltip: 'Remove link',
+                onPressed: () {
+                  setState(() {
+                    _relatedId = null;
+                    _relatedTitle = null;
+                    _anchorController.clear();
+                  });
+                  _markDirty();
+                },
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _anchorController,
+              decoration: InputDecoration(
+                labelText: 'Word to highlight (copy it exactly from the story text)',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                errorText: _anchorController.text.trim().isNotEmpty && !_contentController.text.contains(_anchorController.text.trim())
+                    ? 'This word is not in the story text'
+                    : null,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   // ============================================================
@@ -336,10 +472,17 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
 
     try {
       await _editorService.saveDraft(widget.submission.id!, _currentFields());
-
-      _showMessage('Draft saved successfully.');
-    } catch (_) {
-      _showMessage('We could not save the draft. Please try again.');
+      if (!mounted) return;
+      setState(() {
+        _dirty = false;
+        _previewed = false;
+        _busy = false;
+      });
+      // Reviewing the saved version is mandatory before publishing.
+      await _openPreview();
+    } catch (e) {
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      _showMessage(msg.isEmpty ? 'We could not save the draft. Please try again.' : msg);
     } finally {
       if (mounted) {
         setState(() {
@@ -357,6 +500,11 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
     if (_busy) return;
 
     FocusScope.of(context).unfocus();
+
+    if (!_readyToPublish) {
+      _showMessage('Save the story and check the preview before publishing.');
+      return;
+    }
 
     if (!_validateLocation()) {
       return;
@@ -385,8 +533,9 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
       _showMessage('Story published live.');
 
       Navigator.pop(context);
-    } catch (_) {
-      _showMessage('We could not publish this story. Please try again.');
+    } catch (e) {
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      _showMessage(msg.isEmpty ? 'We could not publish this story. Please try again.' : msg);
     } finally {
       if (mounted) {
         setState(() {
@@ -790,7 +939,11 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
                   ],
                 ),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 20),
+
+                _relatedSection(),
+
+                const SizedBox(height: 12),
 
                 // ==================================================
                 // ACTIONS
@@ -840,7 +993,7 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
                           ),
                         ),
                         label: const Text(
-                          'SAVE DRAFT',
+                          'SAVE & PREVIEW',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -853,7 +1006,7 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _busy ? null : _publish,
+                    onPressed: _busy ? null : (_readyToPublish ? _publish : _saveDraft),
                     icon: _busy
                         ? const SizedBox(
                             width: 18,
@@ -865,7 +1018,7 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
                           )
                         : const Icon(Icons.verified_rounded, size: 18),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
+                      backgroundColor: _readyToPublish ? Colors.black : Colors.blueGrey,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       elevation: 0,
@@ -874,7 +1027,7 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
                       ),
                     ),
                     label: Text(
-                      _busy ? 'PROCESSING...' : 'PUBLISH LIVE',
+                      _busy ? 'PROCESSING...' : (_readyToPublish ? 'PUBLISH LIVE' : 'SAVE & PREVIEW FIRST'),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.8,
@@ -1027,6 +1180,92 @@ class _EditorReviewScreenState extends State<EditorReviewScreen>
             .map((item) => DropdownMenuEntry<String>(value: item, label: item))
             .toList(),
         onSelected: enabled ? onChanged : null,
+      ),
+    );
+  }
+}
+
+/// Search published stories to link as the earlier story.
+class _RelatedStoryPicker extends StatefulWidget {
+  const _RelatedStoryPicker();
+
+  @override
+  State<_RelatedStoryPicker> createState() => _RelatedStoryPickerState();
+}
+
+class _RelatedStoryPickerState extends State<_RelatedStoryPicker> {
+  final _q = TextEditingController();
+  List<NewsArticle> _items = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _latest();
+  }
+
+  Future<void> _latest() async {
+    try {
+      final r = await NewsRepository.instance.page(limit: 30);
+      if (mounted) setState(() {
+        _items = r.items;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _search(String q) async {
+    if (q.trim().length < 2) return _latest();
+    setState(() => _loading = true);
+    final r = await NewsRepository.instance.search(q);
+    if (mounted) setState(() {
+      _items = r;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.8,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: TextField(
+                controller: _q,
+                autofocus: true,
+                textInputAction: TextInputAction.search,
+                onSubmitted: _search,
+                decoration: InputDecoration(
+                  hintText: 'Search earlier stories',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView.separated(
+                      itemCount: _items.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (_, i) {
+                        final a = _items[i];
+                        return ListTile(
+                          title: Text(a.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                          subtitle: Text([a.districtName, a.publishedAt].where((x) => x.isNotEmpty).join(' • ')),
+                          onTap: () => Navigator.pop(context, a),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

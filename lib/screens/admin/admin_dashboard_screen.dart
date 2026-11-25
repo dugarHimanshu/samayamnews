@@ -5,6 +5,9 @@ import '../editor/editor_dashboard_screen.dart';
 import '../editor/story_timelines_overview_screen.dart';
 import 'ad_campaign_planner_screen.dart';
 import 'reporter_applications_screen.dart';
+import 'admin_news_list_screen.dart';
+import 'contributors_screen.dart';
+import 'wishes_review_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -673,6 +676,30 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               );
               _loadEverything();
             },
+          ),
+          const SizedBox(height: 8),
+          _actionTile(
+            icon: Icons.groups_rounded,
+            title: 'Reporters / Freelancers',
+            subtitle: 'See everyone who can send news and remove anyone when needed.',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ContributorsScreen())),
+          ),
+          const SizedBox(height: 8),
+          _actionTile(
+            icon: Icons.list_alt_rounded,
+            title: 'News List',
+            subtitle: 'All published news. Delete any wrong story permanently.',
+            onTap: () async {
+              await Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminNewsListScreen()));
+              _loadEverything();
+            },
+          ),
+          const SizedBox(height: 8),
+          _actionTile(
+            icon: Icons.cake_rounded,
+            title: 'Birthday / Marriage Day Wishes',
+            subtitle: 'Approve or reject wishes posters sent by readers.',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WishesReviewScreen())),
           ),
           const SizedBox(height: 8),
           _actionTile(

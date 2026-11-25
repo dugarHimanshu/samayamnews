@@ -214,6 +214,10 @@ class EditorService {
       out['language'] = SubmissionService.detectLanguage('${str('title') ?? ''} ${str('content')}');
     }
     if (str('author') != null) out['authorName'] = str('author');
+    if (fields.containsKey('related_article_id')) {
+      out['relatedArticleId'] = str('related_article_id');
+      out['relatedAnchor'] = str('related_article_id') == null ? null : str('related_anchor');
+    }
     if (fields.containsKey('source')) out['source'] = str('source');
     if (str('category') != null) {
       await CategoryRepository.instance.init();

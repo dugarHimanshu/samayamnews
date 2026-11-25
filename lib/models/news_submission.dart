@@ -26,6 +26,8 @@ class NewsSubmission {
   final String? rejectionReason;
   final bool claimedByMe;
   final String? claimedByName;
+  final String? relatedArticleId; // follow-up link chosen by the editor
+  final String? relatedAnchor;
 
   const NewsSubmission({
     this.id,
@@ -48,6 +50,8 @@ class NewsSubmission {
     this.rejectionReason,
     this.claimedByMe = false,
     this.claimedByName,
+    this.relatedArticleId,
+    this.relatedAnchor,
   });
 
   factory NewsSubmission.fromApi(Map<String, dynamic> j) {
@@ -77,6 +81,8 @@ class NewsSubmission {
       rejectionReason: j['rejectionReason']?.toString(),
       claimedByMe: claim?['byMe'] == true,
       claimedByName: claim?['editorName']?.toString(),
+      relatedArticleId: j['relatedArticleId']?.toString(),
+      relatedAnchor: j['relatedAnchor']?.toString(),
     );
   }
 }

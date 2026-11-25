@@ -41,16 +41,25 @@ class LocationRepository extends ChangeNotifier {
   bool get isReady => _ready;
   List<Place> get states => List.unmodifiable(_states);
 
-  Future<void> init() async {
-    if (_ready) return;
+  Future<void>? _initFuture;
+
+  /// Loads states and their districts once; concurrent callers share the same request.
+  Future<void> init() {
+    if (_ready) return Future.value();
+    return _initFuture ??= _init().whenComplete(() {
+      if (!_ready) _initFuture = null; // allow a retry after a failure
+    });
+  }
+
+  Future<void> _init() async {
     final res = await ApiClient.instance.get('/locations');
     _states
       ..clear()
       ..addAll(_parse(res));
     for (final s in _states) {
       _byId[s.id] = s;
-      await _loadChildren(s.id, notify: false);
     }
+    await Future.wait([for (final s in _states) _loadChildren(s.id, notify: false)]);
     _ready = true;
     notifyListeners();
   }

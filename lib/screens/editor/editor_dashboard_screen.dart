@@ -1,6 +1,7 @@
 // screens/editor/editor_dashboard_screen.dart
 
 import 'package:flutter/material.dart';
+import '../admin/wishes_review_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/news_article.dart';
@@ -533,6 +534,11 @@ class _EditorDashboardScreenState extends State<EditorDashboardScreen>
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Wishes review',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WishesReviewScreen())),
+            icon: const Icon(Icons.cake_outlined, color: Colors.pinkAccent),
+          ),
           IconButton(
             tooltip: 'Refresh',
             onPressed: _loading ? null : _loadEverything,

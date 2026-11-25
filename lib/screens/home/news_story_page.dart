@@ -4,7 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:translator/translator.dart';
 
 import '../../models/news_article.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../services/api_client.dart';
 import '../../services/news_service.dart';
+import '../../widgets/news/news_actions.dart';
 import '../../data/demo_news.dart';
 import '../../widgets/common/app_media_viewer.dart';
 import '../../widgets/timeline/story_timeline_sheet.dart';
@@ -13,11 +17,15 @@ import '../../utils/display_formatters.dart';
 class NewsStoryPage extends StatefulWidget {
   final NewsArticle article;
   final String selectedLanguage;
+  /// Editor preview: shows the page exactly as readers will see it, with
+  /// "Edit again" / "Looks good" instead of Like · Share · Comment.
+  final bool preview;
 
   const NewsStoryPage({
     super.key,
     required this.article,
     required this.selectedLanguage,
+    this.preview = false,
   });
 
   @override
@@ -59,28 +67,70 @@ class _NewsStoryPageState extends State<NewsStoryPage> {
     _translatedDescription = _originalDescription;
     _translatedBody = _originalBody;
 
-    Analytics.instance.track('view', widget.article.id);
+    if (!widget.preview) Analytics.instance.track('view', widget.article.id);
 
     // Feed items carry only the summary; fetch the full story.
-    if (widget.article.content.isEmpty && widget.article.id.isNotEmpty) {
-      _loadFullArticle();
-    } else if (_currentLanguage != 'English') {
-      _translateContent(_currentLanguage);
-    }
+    // Always fetch the full story (body, live like/comment counts, follow-up link).
+    // The story stays in its own language unless the reader taps translate.
+    if (widget.article.id.isNotEmpty && !widget.preview) _loadFullArticle();
   }
+
+  NewsArticle? _full;
+  int? _commentCount;
+  NewsArticle get _article => _full ?? widget.article;
 
   Future<void> _loadFullArticle() async {
     final full = await NewsRepository.instance.getArticle(widget.article.id);
     if (!mounted) return;
-    if (full != null && full.content.isNotEmpty) {
+    if (full != null) {
       setState(() {
-        _originalBody = full.content;
-        _translatedBody = full.content;
+        _full = full;
+        if (full.content.isNotEmpty) {
+          _originalBody = full.content;
+          _translatedBody = full.content;
+        }
       });
     }
-    if (_currentLanguage != 'English') {
-      _translateContent(_currentLanguage);
+  }
+
+  /// Body text; the follow-up anchor word is highlighted and opens the earlier story.
+  Widget _bodyText(String text) {
+    final style = GoogleFonts.inter(fontSize: 15.5, height: 1.8, fontWeight: FontWeight.w400, color: Colors.black87);
+    final anchor = _article.relatedAnchor?.trim() ?? '';
+    final relatedId = _article.relatedArticleId;
+    final at = anchor.isEmpty ? -1 : text.indexOf(anchor);
+    if (relatedId == null || at < 0) return Text(text, style: style);
+    return Text.rich(
+      TextSpan(style: style, children: [
+        TextSpan(text: text.substring(0, at)),
+        WidgetSpan(
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: GestureDetector(
+            onTap: () => _openRelated(relatedId),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(color: const Color(0xFFFFF3CD), borderRadius: BorderRadius.circular(6)),
+              child: Text(
+                anchor,
+                style: style.copyWith(color: const Color(0xFFD84315), fontWeight: FontWeight.w800, decoration: TextDecoration.underline, decorationColor: const Color(0xFFD84315)),
+              ),
+            ),
+          ),
+        ),
+        TextSpan(text: text.substring(at + anchor.length)),
+      ]),
+    );
+  }
+
+  Future<void> _openRelated(String id) async {
+    final a = await NewsRepository.instance.getArticle(id);
+    if (!mounted) return;
+    if (a == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('The earlier story is no longer available.')));
+      return;
     }
+    Navigator.push(context, MaterialPageRoute(builder: (_) => NewsStoryPage(article: a, selectedLanguage: widget.selectedLanguage)));
   }
 
   // ---- Custom Hinglish transliterator ----
@@ -300,9 +350,15 @@ class _NewsStoryPageState extends State<NewsStoryPage> {
     }
   }
 
-  void _toggleLike() {
+  Future<void> _toggleLike() async {
     HapticFeedback.lightImpact();
     setState(() => _liked = !_liked);
+    if (Supabase.instance.client.auth.currentSession == null) return;
+    try {
+      _liked
+          ? await ApiClient.instance.put('/me/likes/${widget.article.id}')
+          : await ApiClient.instance.delete('/me/likes/${widget.article.id}');
+    } catch (_) {}
   }
 
   void _showLanguageSelector() {
@@ -452,7 +508,7 @@ class _NewsStoryPageState extends State<NewsStoryPage> {
               ),
 
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(24, 28, 24, 40),
+                padding: const EdgeInsets.fromLTRB(24, 28, 24, 110),
                 sliver: SliverToBoxAdapter(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -567,15 +623,7 @@ class _NewsStoryPageState extends State<NewsStoryPage> {
                               ),
                             ),
                             const SizedBox(height: 24),
-                            Text(
-                              displayBody,
-                              style: GoogleFonts.inter(
-                                fontSize: 15.5,
-                                height: 1.8,
-                                fontWeight: FontWeight.w400,
-                                color: Colors.black87,
-                              ),
-                            ),
+                            _bodyText(displayBody),
                             const SizedBox(height: 24),
                             // Story Timeline & Follow-up Developments
                             StoryTimelineInlineSection(
@@ -649,39 +697,45 @@ class _NewsStoryPageState extends State<NewsStoryPage> {
             ),
           ),
 
+          // Like · Share (WhatsApp) · Comment
           Positioned(
-            bottom: 32,
-            right: 24,
-            child: GestureDetector(
-              onTap: _toggleLike,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _liked ? Colors.redAccent : Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.12),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  transitionBuilder: (child, animation) =>
-                      ScaleTransition(scale: animation, child: child),
-                  child: Icon(
-                    _liked
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
-                    key: ValueKey(_liked),
-                    size: 28,
-                    color: _liked ? Colors.white : Colors.black45,
-                  ),
-                ),
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, -4))],
+              ),
+              padding: EdgeInsets.fromLTRB(12, 10, 12, 10 + MediaQuery.of(context).padding.bottom),
+              child: widget.preview
+                  ? Row(children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
+                          onPressed: () => Navigator.pop(context, false),
+                          icon: const Icon(Icons.edit_rounded),
+                          label: const Text('Edit again'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(46), backgroundColor: const Color(0xFF2E7D32)),
+                          onPressed: () => Navigator.pop(context, true),
+                          icon: const Icon(Icons.check_rounded),
+                          label: const Text('Looks good'),
+                        ),
+                      ),
+                    ])
+                  : NewsActionBar(
+                article: _article,
+                liked: _liked,
+                likeCount: _article.likeCount + (_liked ? 1 : 0),
+                commentCount: _commentCount ?? _article.commentCount,
+                onLike: _toggleLike,
+                onShare: () => shareNewsToWhatsApp(_article, title: _translatedTitle, summary: _translatedDescription),
+                onComment: () => CommentsSheet.show(context, _article, onCountChanged: (n) => setState(() => _commentCount = n)),
               ),
             ),
           ),

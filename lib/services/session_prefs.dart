@@ -22,6 +22,21 @@ class SessionPrefs {
     await prefs.setString(_keyDistrict, district);
   }
 
+  // Last known role per user, so the app can open instantly; refreshed in the background.
+  static Future<String?> cachedRole(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('role_$userId');
+  }
+
+  static Future<void> cacheRole(String userId, String? role) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (role == null) {
+      await prefs.remove('role_$userId');
+    } else {
+      await prefs.setString('role_$userId', role);
+    }
+  }
+
   // Changes only the language (state/district stay as chosen).
   static Future<void> saveLanguage(String language) async {
     final prefs = await SharedPreferences.getInstance();

@@ -19,6 +19,21 @@ class NewsArticle {
   final bool isBreaking;
   final DateTime? publishedAtTime;
   final String thumbUrl;
+  final String categoryTe;
+  final String categoryHi;
+  final int likeCount;
+  final int commentCount;
+  // Follow-up link: tapping [relatedAnchor] in the body opens [relatedArticleId].
+  final String? relatedArticleId;
+  final String? relatedAnchor;
+
+  /// Category name in the reader's language (falls back to English).
+  String categoryIn(String language) {
+    final l = language.toLowerCase();
+    if ((l.startsWith('te') || l == 'telugu') && categoryTe.isNotEmpty) return categoryTe;
+    if ((l.startsWith('hi') || l == 'hindi') && categoryHi.isNotEmpty) return categoryHi;
+    return category;
+  }
 
   const NewsArticle({
     required this.id,
@@ -39,6 +54,12 @@ class NewsArticle {
     this.isBreaking = false,
     this.publishedAtTime,
     this.thumbUrl = '',
+    this.categoryTe = '',
+    this.categoryHi = '',
+    this.likeCount = 0,
+    this.commentCount = 0,
+    this.relatedArticleId,
+    this.relatedAnchor,
   });
 
   /// From the API's article DTO (/v1/feed, /v1/articles, /v1/articles/:id).
@@ -68,6 +89,12 @@ class NewsArticle {
       language: (j['language'] ?? 'en').toString(),
       isBreaking: j['isBreaking'] == true,
       publishedAtTime: published,
+      categoryTe: (cat['nameTe'] ?? '').toString(),
+      categoryHi: (cat['nameHi'] ?? '').toString(),
+      likeCount: (j['likeCount'] as num?)?.toInt() ?? 0,
+      commentCount: (j['commentCount'] as num?)?.toInt() ?? 0,
+      relatedArticleId: j['relatedArticleId']?.toString(),
+      relatedAnchor: j['relatedAnchor']?.toString(),
     );
   }
 
@@ -122,6 +149,12 @@ class NewsArticle {
         isBreaking: isBreaking,
         publishedAtTime: publishedAtTime,
         thumbUrl: thumbUrl,
+        categoryTe: categoryTe,
+        categoryHi: categoryHi,
+        likeCount: likeCount,
+        commentCount: commentCount,
+        relatedArticleId: relatedArticleId,
+        relatedAnchor: relatedAnchor,
       );
 
   static String _fmt(DateTime d) =>

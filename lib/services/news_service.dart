@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/advertisement.dart';
+import '../models/advertisement_campaign.dart';
 import '../models/magazine.dart';
 import '../models/news_article.dart';
 import 'api_client.dart';
@@ -30,6 +31,8 @@ class NewsService {
 
   /// Home feed: the selected district's last-48h news first, then everything else newest-first.
   Future<FeedPage> fetchFeed({String? state, String? district, String? cursor, int limit = 20}) async {
+    // District ids come from the location list, which loads in the background at startup.
+    await LocationRepository.instance.init().catchError((_) {});
     try {
       final res = await _api.get('/feed', query: {
         'district': districtIdFor(state, district),
@@ -45,7 +48,11 @@ class NewsService {
             items.add(a);
             NewsRepository.instance._remember([a]);
           case 'ad':
-            items.add(AdvertisementItem.fromApi(Map<String, dynamic>.from(item['ad'] as Map)));
+            final ad = Map<String, dynamic>.from(item['ad'] as Map);
+            // 4-page campaigns (planned in the Ad Campaign Planner) render as sliding ads.
+            items.add((ad['slides'] is List && (ad['slides'] as List).isNotEmpty)
+                ? AdvertisementCampaign.fromApi(ad)
+                : AdvertisementItem.fromApi(ad));
           case 'magazine':
             items.add(Magazine.fromApi(Map<String, dynamic>.from(item['magazine'] as Map)));
         }
@@ -113,6 +120,19 @@ class NewsRepository extends ChangeNotifier {
       loading = false;
       notifyListeners();
     }
+  }
+
+  /// One page of a plain newest-first list (News tab, Reels, category pages).
+  Future<({List<NewsArticle> items, String? nextCursor})> page({String? category, bool videoOnly = false, String? cursor, int limit = 20}) async {
+    final res = await _api.get('/articles', query: {
+      'category': category,
+      if (videoOnly) 'video': '1',
+      'cursor': cursor,
+      'limit': limit,
+    }) as Map;
+    final items = (res['items'] as List).map((e) => NewsArticle.fromApi(Map<String, dynamic>.from(e as Map))).toList();
+    _remember(items);
+    return (items: items, nextCursor: res['nextCursor'] as String?);
   }
 
   Future<List<NewsArticle>> loadCategory(String slug) => _guard(() => _list('/articles', {'category': slug, 'limit': 50}));

@@ -183,81 +183,19 @@ class WelcomeScreen extends StatelessWidget {
   // ============================================================
 
   Widget _buildLogo() {
-    return Stack(
-      alignment: Alignment.center,
+    return Column(
       children: [
         Container(
-          width: 116,
-          height: 116,
-          decoration: const BoxDecoration(
+          width: 112,
+          height: 112,
+          decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [Color(0x40D4B978), Color(0x00D4B978)],
-            ),
+            boxShadow: [BoxShadow(color: const Color(0xFF1A237E).withValues(alpha: 0.18), blurRadius: 24, offset: const Offset(0, 10))],
           ),
+          child: Image.asset('assets/public/images/app_logo.png'),
         ),
-
-        ClipRRect(
-          borderRadius: BorderRadius.circular(30),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-            child: Container(
-              width: 88,
-              height: 88,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.62),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.95),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.09),
-                    blurRadius: 24,
-                    offset: const Offset(0, 11),
-                  ),
-                  const BoxShadow(
-                    color: Color(0x45C5A05B),
-                    blurRadius: 25,
-                    offset: Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Container(
-                  width: 66,
-                  height: 66,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF252525), Color(0xFF080808)],
-                    ),
-                    borderRadius: BorderRadius.circular(22),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.22),
-                        blurRadius: 15,
-                        offset: const Offset(4, 7),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      'B',
-                      style: GoogleFonts.playfairDisplay(
-                        color: const Color(0xFFF4DDAA),
-                        fontSize: 37,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+        const SizedBox(height: 10),
+        Text('సమయం న్యూస్', style: GoogleFonts.notoSansTelugu(fontSize: 22, fontWeight: FontWeight.w900, color: const Color(0xFF1A237E))),
       ],
     );
   }

@@ -9,6 +9,13 @@ class AppStrings {
 
   static const Map<String, Map<String, String>> _strings = {
     'home': {'english': 'Home', 'hindi': 'होम', 'telugu': 'హోమ్'},
+    'news': {'english': 'News', 'hindi': 'समाचार', 'telugu': 'వార్తలు'},
+    'headlines': {'english': 'Headlines', 'hindi': 'हेडलाइंस', 'telugu': 'ముఖ్యాంశాలు'},
+    'reels': {'english': 'Reels', 'hindi': 'रील्स', 'telugu': 'రీల్స్'},
+    'latest_news': {'english': 'Latest News', 'hindi': 'ताज़ा समाचार', 'telugu': 'తాజా వార్తలు'},
+    'wishes': {'english': 'Wishes', 'hindi': 'शुभकामनाएँ', 'telugu': 'శుభాకాంక్షలు'},
+    'birthday_wishes': {'english': 'Birthday Wishes', 'hindi': 'जन्मदिन की शुभकामनाएँ', 'telugu': 'పుట్టినరోజు శుభాకాంక్షలు'},
+    'anniversary_wishes': {'english': 'Marriage Day Wishes', 'hindi': 'शादी की सालगिरह की शुभकामनाएँ', 'telugu': 'పెళ్లిరోజు శుభాకాంక్షలు'},
     'categories': {
       'english': 'Categories',
       'hindi': 'श्रेणियाँ',
@@ -219,6 +226,14 @@ class AppStrings {
   static String t(String key, String languageId) {
     final entry = _strings[key];
     if (entry == null) return key;
-    return entry[languageId] ?? entry['english'] ?? key;
+    return entry[normalize(languageId)] ?? entry['english'] ?? key;
+  }
+
+  /// 'Telugu' / 'te' / 'telugu' → 'telugu' (same for Hindi / English).
+  static String normalize(String languageId) {
+    final l = languageId.trim().toLowerCase();
+    if (l.startsWith('te') || l == 'తెలుగు') return 'telugu';
+    if (l.startsWith('hi') || l == 'हिन्दी' || l == 'हिंदी') return 'hindi';
+    return 'english';
   }
 }

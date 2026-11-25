@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // NEW: needed to check login state for Fill Form
 
-import '../../widgets/home/glass_header.dart';
 import '../../widgets/home/news_bottom_navigation.dart';
 import '../../services/app_strings.dart';
 import '../../services/auth_service.dart';
@@ -11,6 +11,8 @@ import '../../services/session_prefs.dart';
 import '../home/news_home_screen.dart';
 import '../category/category_screen.dart';
 import '../search/search_screen.dart';
+import '../news/latest_news_screen.dart';
+import '../reels/reels_screen.dart';
 import '../home/onboarding/welcome_screen.dart';
 import '../location/location_screen.dart';
 import '../saved/saved_screen.dart';
@@ -68,9 +70,34 @@ class _MainShellState extends State<MainShell> {
   // CHROME VISIBILITY
   // ------------------------------------------------------------
 
-  void _setChromeVisible(bool visible) {
-    if (_chromeVisible.value == visible) return;
-    _chromeVisible.value = visible; // Updates without rebuilding MainShell
+  // The bar and the corner buttons stay visible so Like / Share / Comment and the
+  // tabs are always easy to find (the news page leaves room for them).
+  void _setChromeVisible(bool visible) {}
+
+  // ------------------------------------------------------------
+  // BACK BUTTON: one screen at a time; on Home, press twice to exit
+  // ------------------------------------------------------------
+
+  DateTime? _lastBackPress;
+
+  void _onBack() {
+    if (_currentIndex.value != 0) {
+      _pageController.jumpToPage(0);
+      return;
+    }
+    final now = DateTime.now();
+    if (_lastBackPress == null || now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
+      _lastBackPress = now;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+          content: Text('Press back again to exit'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ));
+      return;
+    }
+    SystemNavigator.pop();
   }
 
   // ------------------------------------------------------------
@@ -146,7 +173,12 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     // Because we removed setState, this Scaffold only builds ONCE.
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onBack();
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFFF7F7F5),
       body: Stack(
         fit: StackFit.expand,
@@ -157,9 +189,9 @@ class _MainShellState extends State<MainShell> {
           PageView(
             controller: _pageController,
             onPageChanged: _onPageChanged,
-            physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
-            ),
+            // Tabs change from the bottom bar only, so swiping inside a page
+            // (turning news pages, reels) never jumps to another tab.
+            physics: const NeverScrollableScrollPhysics(),
             children: [
               RepaintBoundary(
                 child: NewsHomeScreen(
@@ -171,12 +203,24 @@ class _MainShellState extends State<MainShell> {
                 ),
               ),
               RepaintBoundary(
+                child: LatestNewsScreen(
+                  key: ValueKey('news_$_currentLanguage'),
+                  selectedLanguage: _currentLanguage,
+                ),
+              ),
+              RepaintBoundary(
                 child: CategoryScreen(
                   key: ValueKey('category_$_currentLanguage'),
                   selectedLanguage: _currentLanguage,
                   selectedState: _currentState,
                   selectedDistrict: _currentDistrict,
                 ),
+              ),
+              ReelsScreen(
+                key: ValueKey('reels_$_currentLanguage'),
+                selectedLanguage: _currentLanguage,
+                active: _currentIndex,
+                tabIndex: 3,
               ),
               RepaintBoundary(
                 child: LocationScreen(
@@ -186,55 +230,27 @@ class _MainShellState extends State<MainShell> {
                   selectedDistrict: _currentDistrict,
                 ),
               ),
-              RepaintBoundary(
-                child: SearchScreen(
-                  key: ValueKey('search_$_currentLanguage'),
-                  selectedLanguage: _currentLanguage,
-                  selectedState: _currentState,
-                  selectedDistrict: _currentDistrict,
-                ),
-              ),
-              RepaintBoundary(
-                child: SavedScreen(
-                  key: ValueKey('saved_$_currentLanguage'),
-                  selectedLanguage: _currentLanguage,
-                  selectedState: _currentState,
-                  selectedDistrict: _currentDistrict,
-                ),
-              ),
             ],
           ),
 
           // ------------------------------------------------------
-          // SHARED GLASS HEADER
+          // SMALL CORNER BUTTONS (menu left, profile right) — no title bar
+          // over the photos
           // ------------------------------------------------------
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: ValueListenableBuilder<bool>(
-              valueListenable: _chromeVisible,
-              builder: (context, isVisible, child) {
-                return IgnorePointer(
-                  ignoring: !isVisible,
-                  child: AnimatedSlide(
-                    offset: isVisible ? Offset.zero : const Offset(0, -1.15),
-                    duration: const Duration(milliseconds: 260),
-                    curve: Curves.easeOutCubic,
-                    child: AnimatedOpacity(
-                      opacity: isVisible ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 200),
-                      child: child,
-                    ),
-                  ),
-                );
-              },
-              // 3. CACHE THE BLUR
-              child: RepaintBoundary(
-                child: GlassHeader(
-                  visible: true,
-                  onMenuTap: _openMenu,
-                  onProfileTap: _openProfile,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+                child: Row(
+                  children: [
+                    _CornerButton(icon: Icons.menu_rounded, tooltip: 'Menu', onTap: _openMenu),
+                    const Spacer(),
+                    _CornerButton(icon: Icons.person_rounded, tooltip: 'Profile', onTap: _openProfile),
+                  ],
                 ),
               ),
             ),
@@ -279,6 +295,32 @@ class _MainShellState extends State<MainShell> {
             ),
           ),
         ],
+      ),
+    ),
+    );
+  }
+}
+
+/// Small round translucent button used at the top corners of every tab.
+class _CornerButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _CornerButton({required this.icon, required this.tooltip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.38),
+        shape: const CircleBorder(side: BorderSide(color: Color(0x66FFFFFF))),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(width: 38, height: 38, child: Icon(icon, size: 20, color: Colors.white)),
+        ),
       ),
     );
   }
@@ -548,6 +590,38 @@ class _MenuSheet extends StatelessWidget {
                 final nav = Navigator.of(context);
                 Navigator.pop(context);
                 nav.push(MaterialPageRoute(builder: (_) => const ReporterRegistrationScreen()));
+              },
+            ),
+
+            // Search and Saved moved here from the bottom bar
+            _MenuItem(
+              icon: Icons.search_rounded,
+              title: AppStrings.t('search', selectedLanguage),
+              onTap: () {
+                final nav = Navigator.of(context);
+                Navigator.pop(context);
+                nav.push(MaterialPageRoute(
+                  builder: (_) => Scaffold(
+                    backgroundColor: const Color(0xFFF7F7F5),
+                    appBar: AppBar(title: Text(AppStrings.t('search', selectedLanguage)), backgroundColor: Colors.transparent, elevation: 0),
+                    body: SearchScreen(selectedLanguage: selectedLanguage, selectedState: selectedState, selectedDistrict: selectedDistrict),
+                  ),
+                ));
+              },
+            ),
+            _MenuItem(
+              icon: Icons.bookmark_outline_rounded,
+              title: AppStrings.t('saved', selectedLanguage),
+              onTap: () {
+                final nav = Navigator.of(context);
+                Navigator.pop(context);
+                nav.push(MaterialPageRoute(
+                  builder: (_) => Scaffold(
+                    backgroundColor: const Color(0xFFF7F7F5),
+                    appBar: AppBar(title: Text(AppStrings.t('saved', selectedLanguage)), backgroundColor: Colors.transparent, elevation: 0),
+                    body: SavedScreen(selectedLanguage: selectedLanguage, selectedState: selectedState, selectedDistrict: selectedDistrict),
+                  ),
+                ));
               },
             ),
 

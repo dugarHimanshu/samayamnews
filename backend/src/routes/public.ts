@@ -45,6 +45,7 @@ publicRouter.get('/articles', publicCache(30, 120), async (req, res) => {
       mandal: id.optional(),
       category: z.string().max(40).optional(),
       cursor: z.string().max(500).optional(),
+      video: z.enum(['0', '1']).optional(),
       limit: limitSchema,
     }),
   )
@@ -54,7 +55,7 @@ publicRouter.get('/articles', publicCache(30, 120), async (req, res) => {
     categoryId = [...cats.values()].find((c) => c.slug === q.category || String(c.id) === q.category)?.id
     if (!categoryId) throw notFound('Unknown category')
   }
-  res.json(await listArticles({ districtId: q.district, mandalId: q.mandal, categoryId, cursor: q.cursor, limit: q.limit }))
+  res.json(await listArticles({ districtId: q.district, mandalId: q.mandal, categoryId, videoOnly: q.video === '1', cursor: q.cursor, limit: q.limit }))
 })
 
 publicRouter.get('/articles/:id', publicCache(60, 300), async (req, res) => {

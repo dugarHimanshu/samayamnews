@@ -15,7 +15,6 @@ import '../../services/api_client.dart';
 import '../../models/magazine.dart';
 import '../../models/news_article.dart';
 import '../../models/advertisement_campaign.dart';
-import '../../services/ad_campaign_service.dart';
 import '../../services/news_service.dart';
 import '../../services/saved_news_store.dart';
 import '../../services/magazine_store.dart';
@@ -24,6 +23,9 @@ import '../../services/story_timeline_service.dart';
 import '../../utils/display_formatters.dart';
 import '../../widgets/common/app_media_viewer.dart';
 import '../../widgets/home/auto_sliding_ad_card.dart';
+import '../../widgets/news/news_actions.dart';
+import '../../widgets/home/news_bottom_navigation.dart' show kNewsBottomBarSpace;
+import 'news_story_page.dart';
 import '../../widgets/timeline/story_timeline_sheet.dart';
 import '../magazine/magazine_reader_page.dart';
 
@@ -775,6 +777,7 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
   bool _showHeader = true;
   double _lastPage = 0;
   final Set<String> _likedArticleIds = {};
+  final Set<String> _initiallyLiked = {}; // server already counted these in likeCount
   Timer? _headTimer;
 
   @override
@@ -840,21 +843,6 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
     if (item is AdvertisementItem) Analytics.instance.track('ad_impression', item.id);
   }
 
-  // Ad slots alternate between the in-house ads managed in the admin panel (served by
-  // the API) and the scheduled 4-page sliding campaigns, so both are visible.
-  int _campaignCursor = 0;
-  int _adSlot = 0;
-  List<dynamic> _withCampaigns(List<dynamic> items) {
-    final campaigns = AdCampaignService.instance.activeCampaigns;
-    if (campaigns.isEmpty) return items;
-    final out = <dynamic>[];
-    for (final item in items) {
-      final useCampaign = item is AdvertisementItem && (_adSlot++ % 2 == 1);
-      out.add(useCampaign ? campaigns[_campaignCursor++ % campaigns.length] : item);
-    }
-    return out;
-  }
-
   // Loads the next page when the reader gets close to the end.
   Future<void> _maybeLoadMore() async {
     if (_loadingMore || _nextCursor == null || _currentPage < _feedItems.length - 4) return;
@@ -867,7 +855,7 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
       );
       if (!mounted) return;
       setState(() {
-        _feedItems.addAll(_withCampaigns(page.items));
+        _feedItems.addAll(page.items);
         _nextCursor = page.nextCursor;
       });
     } catch (_) {
@@ -890,11 +878,9 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
       );
       if (!mounted) return;
       setState(() {
-        _campaignCursor = 0;
-        _adSlot = 0;
         _feedItems
           ..clear()
-          ..addAll(_withCampaigns(page.items));
+          ..addAll(page.items);
         _nextCursor = page.nextCursor;
         _latestId = page.articles.isEmpty ? null : page.articles.first.id;
         _hasNewStories = false;
@@ -922,7 +908,11 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
     try {
       final res = await ApiClient.instance.get('/me/state', query: {'ids': articles.map((a) => a.id).join(',')}) as Map;
       if (!mounted) return;
-      setState(() => _likedArticleIds.addAll((res['liked'] as List).map((e) => e.toString())));
+      final liked = (res['liked'] as List).map((e) => e.toString());
+      setState(() {
+        _likedArticleIds.addAll(liked);
+        _initiallyLiked.addAll(liked);
+      });
     } catch (_) {}
   }
 
@@ -994,6 +984,7 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
       article: article,
       allArticles: _articles,
       liked: _likedArticleIds.contains(articleKey),
+      likedInitially: _initiallyLiked.contains(articleKey),
       bookmarked: _savedStore.isSaved(article.id),
       onLike: () {
         HapticFeedback.lightImpact();
@@ -1122,6 +1113,7 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
 class _SinglePageStory extends StatefulWidget {
   final NewsArticle article;
   final bool liked;
+  final bool likedInitially; // liked when the feed loaded (already included in likeCount)
   final bool bookmarked;
   final VoidCallback onLike;
   final VoidCallback onBookmark;
@@ -1133,6 +1125,7 @@ class _SinglePageStory extends StatefulWidget {
     super.key,
     required this.article,
     required this.liked,
+    this.likedInitially = false,
     required this.bookmarked,
     required this.onLike,
     required this.onBookmark,
@@ -1154,12 +1147,23 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
   void initState() {
     super.initState();
     _lang = widget.selectedLanguage;
+    _likeCount = widget.article.likeCount;
+    _commentCount = widget.article.commentCount;
+    // Stories are shown in the language they were written in; the reader can
+    // translate one on demand from the translate button (no automatic switching).
     _initContent();
-    // Translate right away if the language is not English
-    if (_lang != 'English' &&
-        ArticleTranslator.languageCodes.containsKey(_lang)) {
-      _translate(_lang);
-    }
+  }
+
+  late int _likeCount;
+  late int _commentCount;
+
+  void _openFullStory() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NewsStoryPage(article: widget.article, selectedLanguage: widget.selectedLanguage),
+      ),
+    );
   }
 
   // Sets the original (untranslated) text
@@ -1177,11 +1181,9 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
     if (oldWidget.article.id != widget.article.id ||
         oldWidget.selectedLanguage != widget.selectedLanguage) {
       _lang = widget.selectedLanguage;
+      _likeCount = widget.article.likeCount;
+      _commentCount = widget.article.commentCount;
       _initContent();
-      if (_lang != 'English' &&
-          ArticleTranslator.languageCodes.containsKey(_lang)) {
-        _translate(_lang);
-      }
     }
   }
 
@@ -1323,10 +1325,10 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
                       ),
                     ),
                   ),
-                  // TOP RIGHT WATERMARK
+                  // TOP RIGHT WATERMARK (left of the small profile button)
                   Positioned(
                     top: 10,
-                    right: 10,
+                    right: 58,
                     child: Image.asset(
                       'assets/public/images/watermark/watermark_top_right.png',
                       width: 74,
@@ -1348,30 +1350,6 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
                       errorBuilder: (_, _, _) => const SizedBox.shrink(),
                     ),
                   ),
-                  // CATEGORY LABEL (top left)
-                  Positioned(
-                    top: 16,
-                    left: 16,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        widget.article.category.toUpperCase(),
-                        style: GoogleFonts.inter(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -1379,7 +1357,7 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
             // ARTICLE INFO & COMPACT CONTENT
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + kNewsBottomBarSpace + MediaQuery.of(context).padding.bottom),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final availableHeight = constraints.maxHeight;
@@ -1395,11 +1373,38 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
                       children: [
                         // Scrollable/flexible text block (title, divider, description, body)
                         Expanded(
-                          child: SingleChildScrollView(
-                            physics: const ClampingScrollPhysics(),
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: _openFullStory,
+                            child: ClipRect(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                Row(
+                                  children: [
+                                    if (widget.article.category.isNotEmpty)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                                        decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(10)),
+                                        child: Text(
+                                          widget.article.categoryIn(widget.selectedLanguage),
+                                          style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w800, color: const Color(0xFFE65100)),
+                                        ),
+                                      ),
+                                    const Spacer(),
+                                    InkWell(
+                                      onTap: _showLangPicker,
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(4),
+                                        child: _isTranslating
+                                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                            : const Icon(Icons.translate_rounded, size: 18, color: Colors.black45),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
                                 _buildTimelineBadge(),
                                 // Title displays gracefully with enhanced size
                                 Text(
@@ -1449,107 +1454,41 @@ class _SinglePageStoryState extends State<_SinglePageStory> {
                                       color: const Color(0xFF222222),
                                     ),
                                   ),
+                                const Spacer(),
+                                Text(
+                                  'Read full story →',
+                                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF1565C0)),
+                                ),
                               ],
+                            ),
                             ),
                           ),
                         ),
 
                         const SizedBox(height: 8),
 
-                        // ACTIONS + FOOTER INFO
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            // Author / source and date
-                            Expanded(
-                              child: Text(
-                                '${widget.article.author.isEmpty ? widget.article.source : widget.article.author} • ${widget.article.publishedAt}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.inter(
-                                  fontSize: isSmallScreen ? 11 : 12,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                            ),
-                            // Action buttons: like, bookmark, share, translate
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Like button
-                                IconButton(
-                                  visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                                  constraints: const BoxConstraints(),
-                                  icon: Icon(
-                                    widget.liked
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    size: 19,
-                                    color: widget.liked
-                                        ? Colors.red
-                                        : Colors.black54,
-                                  ),
-                                  onPressed: widget.onLike,
-                                ),
-                                const SizedBox(width: 8),
-                                // Bookmark button
-                                IconButton(
-                                  visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                                  constraints: const BoxConstraints(),
-                                  icon: Icon(
-                                    widget.bookmarked
-                                        ? Icons.bookmark
-                                        : Icons.bookmark_border,
-                                    size: 19,
-                                    color: widget.bookmarked
-                                        ? Colors.deepPurple
-                                        : Colors.black54,
-                                  ),
-                                  onPressed: widget.onBookmark,
-                                ),
-                                const SizedBox(width: 8),
-                                // Share button
-                                IconButton(
-                                  visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                                  constraints: const BoxConstraints(),
-                                  icon: const Icon(
-                                    Icons.share_outlined,
-                                    size: 19,
-                                    color: Colors.black54,
-                                  ),
-                                  onPressed: () => SharePlus.instance.share(
-                                    ShareParams(
-                                      text: '$_title\n\n$_desc\n\n$_body',
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                // Translate button
-                                IconButton(
-                                  visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                                  constraints: const BoxConstraints(),
-                                  icon: _isTranslating
-                                      ? const SizedBox(
-                                          width: 15,
-                                          height: 15,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Icon(
-                                          Icons.translate,
-                                          size: 19,
-                                          color: Colors.black54,
-                                        ),
-                                  onPressed: _showLangPicker,
-                                ),
-                              ],
-                            ),
-                          ],
+                        // FOOTER INFO + LIKE / SHARE / COMMENT
+                        Text(
+                          '${widget.article.author.isEmpty ? widget.article.source : widget.article.author} • ${widget.article.publishedAt}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(fontSize: isSmallScreen ? 11 : 12, color: Colors.black54),
+                        ),
+                        const SizedBox(height: 8),
+                        NewsActionBar(
+                          article: widget.article,
+                          liked: widget.liked,
+                          likeCount: _likeCount + (widget.liked ? 1 : 0) - (widget.likedInitially ? 1 : 0),
+                          commentCount: _commentCount,
+                          bookmarked: widget.bookmarked,
+                          onLike: widget.onLike,
+                          onBookmark: widget.onBookmark,
+                          onShare: () => shareNewsToWhatsApp(widget.article, title: _title, summary: _desc),
+                          onComment: () => CommentsSheet.show(
+                            context,
+                            widget.article,
+                            onCountChanged: (n) => setState(() => _commentCount = n),
+                          ),
                         ),
                       ],
                     );

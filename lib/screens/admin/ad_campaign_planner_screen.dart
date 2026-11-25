@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../models/advertisement_campaign.dart';
 import '../../services/ad_campaign_service.dart';
+import '../../services/api_client.dart';
+import '../../services/location_repository.dart';
 import '../../widgets/home/auto_sliding_ad_card.dart';
 
 /// Screen allowing Admins and Editors to plan advertising campaigns in advance
@@ -73,7 +75,13 @@ class _AdCampaignPlannerScreenState extends State<AdCampaignPlannerScreen>
       backgroundColor: Colors.transparent,
       builder: (ctx) => _CreateCampaignSheet(
         onSaved: (newCampaign) async {
-          await _adService.saveCampaign(newCampaign);
+          try {
+            await _adService.saveCampaign(newCampaign);
+          } catch (e) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not save: ${e is ApiException ? e.message : e}')));
+            return;
+          }
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -331,13 +339,20 @@ class _CampaignCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  campaign.category.toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                    color: Colors.black45,
+                Flexible(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.place_rounded, size: 12, color: Color(0xFF2E7D32)),
+                      const SizedBox(width: 2),
+                      Flexible(
+                        child: Text(
+                          campaign.targetLabel,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF2E7D32)),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const Spacer(),
@@ -505,6 +520,11 @@ class _CreateCampaignSheetState extends State<_CreateCampaignSheet> {
   final _ctaUrlController = TextEditingController();
 
   AdScheduleType _scheduleType = AdScheduleType.threePlusOne; // 3+1 by default
+
+  // Where the advertiser wants the ad shown
+  String _scope = 'all'; // all | state | district
+  int? _targetStateId;
+  int? _targetDistrictId;
   DateTime _startDate = DateTime.now();
   int _customDays = 7;
 
@@ -586,6 +606,12 @@ class _CreateCampaignSheetState extends State<_CreateCampaignSheet> {
   }
 
   void _save() {
+    if (_scope == 'state' && _targetStateId == null || _scope == 'district' && _targetDistrictId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_scope == 'state' ? 'Please choose the state' : 'Please choose the district')),
+      );
+      return;
+    }
     final sponsor = _sponsorController.text.trim();
     if (sponsor.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -620,10 +646,63 @@ class _CreateCampaignSheetState extends State<_CreateCampaignSheet> {
           : 'Learn More',
       ctaUrl: _ctaUrlController.text.trim(),
       createdAt: DateTime.now(),
+      targetScope: _scope,
+      targetStateId: _scope == 'state' ? _targetStateId : null,
+      targetDistrictId: _scope == 'district' ? _targetDistrictId : null,
+      targetLabel: AdCampaignService.targetLabel(_targetStateId, _targetDistrictId, _scope),
     );
 
     widget.onSaved(campaign);
     Navigator.pop(context);
+  }
+
+  Widget _areaPicker() {
+    final loc = LocationRepository.instance;
+    final states = loc.states;
+    Widget option(String label, IconData icon, bool selected, VoidCallback onTap) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: selected ? const Color(0xFFE8F5E9) : Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: selected ? const Color(0xFF2E7D32) : Colors.black12, width: selected ? 1.6 : 1),
+              ),
+              child: Row(children: [
+                Icon(icon, size: 20, color: selected ? const Color(0xFF2E7D32) : Colors.black45),
+                const SizedBox(width: 10),
+                Expanded(child: Text(label, style: TextStyle(fontWeight: FontWeight.w700, color: selected ? const Color(0xFF1B5E20) : Colors.black87))),
+                if (selected) const Icon(Icons.check_circle_rounded, color: Color(0xFF2E7D32), size: 20),
+              ]),
+            ),
+          ),
+        );
+    final districts = <Place>[for (final st in states) ...loc.childrenOf(st.id)]..sort((a, b) => a.nameEn.compareTo(b.nameEn));
+    return Column(
+      children: [
+        option('Both Telugu states (Telangana + Andhra Pradesh)', Icons.public_rounded, _scope == 'all', () => setState(() => _scope = 'all')),
+        for (final st in states)
+          option('Only ${st.nameEn}', Icons.map_rounded, _scope == 'state' && _targetStateId == st.id, () => setState(() {
+                _scope = 'state';
+                _targetStateId = st.id;
+              })),
+        option('Only one district', Icons.location_city_rounded, _scope == 'district', () => setState(() => _scope = 'district')),
+        if (_scope == 'district')
+          DropdownButtonFormField<int>(
+            initialValue: _targetDistrictId,
+            isExpanded: true,
+            decoration: InputDecoration(labelText: 'District', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+            items: [
+              for (final d in districts)
+                DropdownMenuItem(value: d.id, child: Text('${d.nameEn}  (${loc.byId(d.parentId)?.nameEn ?? ''})')),
+            ],
+            onChanged: (v) => setState(() => _targetDistrictId = v),
+          ),
+      ],
+    );
   }
 
   @override
@@ -786,6 +865,16 @@ class _CreateCampaignSheetState extends State<_CreateCampaignSheet> {
                       ],
                     ),
                   ),
+
+                  const SizedBox(height: 20),
+
+                  // AREA: where the advertisement is shown
+                  const Text(
+                    'WHERE TO SHOW THIS AD',
+                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 1.0, color: Colors.black45),
+                  ),
+                  const SizedBox(height: 10),
+                  _areaPicker(),
 
                   const SizedBox(height: 20),
 

@@ -30,6 +30,8 @@ dependencies:
   flutter_pdfview: ^1.4.5
   path_provider: ^2.1.6
   video_player: ^2.14.1
+  font_awesome_flutter: ^11.0.0
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:
@@ -40,7 +42,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    # - assets/public/images/watermark/app_logo.png
+    - assets/public/images/app_logo.png
     - assets/public/images/watermark/watermark_top_right.png
     - assets/public/images/watermark/watermark_bottom_left.png
     - assets/magazines/dummy.pdf

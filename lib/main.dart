@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,7 +13,6 @@ import 'services/category_repository.dart';
 import 'services/location_repository.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
 import 'services/story_timeline_service.dart';
-import 'services/ad_campaign_service.dart';
 import 'screens/home/onboarding/welcome_screen.dart';
 import 'screens/main/main_shell.dart';
 import 'screens/editor/editor_dashboard_screen.dart';
@@ -25,16 +26,14 @@ void main() async {
   );
 
   await AppThemeState.instance.loadTheme();
-  await StoryTimelineService.instance.load();
-  await AdCampaignService.instance.load();
 
-  // Reference data from the API (states/districts, categories). Non-fatal: screens retry on demand.
-  await Future.wait([
-    LocationRepository.instance.init().catchError((Object e) => debugPrint('Locations not loaded: $e')),
-    CategoryRepository.instance.init().catchError((Object e) => debugPrint('Categories not loaded: $e')),
-  ]);
-
+  // Draw the first screen right away; reference data loads in the background
+  // (screens that need it await the same shared request).
   runApp(const ProviderScope(child: NewsApp()));
+
+  unawaited(StoryTimelineService.instance.load());
+  unawaited(LocationRepository.instance.init().catchError((Object e) => debugPrint('Locations not loaded: $e')));
+  unawaited(CategoryRepository.instance.init().catchError((Object e) => debugPrint('Categories not loaded: $e')));
 }
 
 final supabase = Supabase.instance.client;
@@ -100,17 +99,36 @@ class _AuthGateState extends State<AuthGate> {
 
  Future<Widget> _resolveStartScreen() async {
     final session = supabase.auth.currentSession;
+    final selections = await SessionPrefs.loadSelections();
 
     if (session == null) {
+      // Guests who already chose language/state/district go straight to the news.
+      if (selections != null) {
+        return MainShell(
+          selectedLanguage: selections['language']!,
+          selectedState: selections['state']!,
+          selectedDistrict: selections['district']!,
+        );
+      }
       return const WelcomeScreen();
     }
 
     // Role comes from the API (app.profiles), never from editable user metadata.
-    String? role;
-    try {
-      role = await AuthService.instance.getCurrentUserRole();
-    } catch (_) {
-      role = null; // offline or API down: fall through to the reader flow
+    // The last known role is used straight away (no waiting on the network at launch)
+    // and refreshed in the background; the API still enforces permissions.
+    String? role = await SessionPrefs.cachedRole(session.user.id);
+    final fresh = AuthService.instance.getCurrentUserRole().then((r) async {
+      await SessionPrefs.cacheRole(session.user.id, r);
+      return r;
+    });
+    if (role == null) {
+      try {
+        role = await fresh.timeout(const Duration(seconds: 12));
+      } catch (_) {
+        role = null; // offline or API down: fall through to the reader flow
+      }
+    } else {
+      unawaited(fresh.catchError((_) => null));
     }
 
     if (role == 'admin') {
@@ -121,7 +139,6 @@ class _AuthGateState extends State<AuthGate> {
     }
 
     // Otherwise, normal reader flow
-    final selections = await SessionPrefs.loadSelections();
     if (selections == null) {
       return const WelcomeScreen();
     }
@@ -141,13 +158,40 @@ class _AuthGateState extends State<AuthGate> {
         if (!snapshot.hasData) {
           // Brief loading state while we check the session — shows
           // for a split second on app launch.
-          return const Scaffold(
-            backgroundColor: Color(0xFFF8F8F6),
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const AppSplash();
         }
         return snapshot.data!;
       },
+    );
+  }
+}
+
+/// First screen: app logo and name only.
+class AppSplash extends StatelessWidget {
+  const AppSplash({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFF8EE),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset('assets/public/images/app_logo.png', width: 150, height: 150),
+            const SizedBox(height: 18),
+            const Text(
+              'సమయం న్యూస్',
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF1A237E)),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'SAMAYAM NEWS',
+              style: TextStyle(fontSize: 12, letterSpacing: 3, fontWeight: FontWeight.w700, color: Color(0xFFC62828)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

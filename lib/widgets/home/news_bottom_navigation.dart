@@ -4,6 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../services/app_strings.dart';
 
+/// Vertical space the floating bottom bar takes (bar + its bottom margin), excluding the
+/// system inset. Screens add this as bottom padding so nothing is hidden behind the bar.
+const double kNewsBottomBarSpace = 82;
+
+/// Tabs, in the order the client asked for: Home · News · Headlines · Reels · Area/Location.
 class NewsBottomNavigation extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onItemSelected;
@@ -47,45 +52,49 @@ class NewsBottomNavigation extends StatelessWidget {
                         icon: Icons.home_outlined,
                         selectedIcon: Icons.home_rounded,
                         label: AppStrings.t('home', language),
+                        color: const Color(0xFFE53935),
                         selected: currentIndex == 0,
                         onTap: () => onItemSelected(0),
                       ),
                     ),
                     Expanded(
                       child: _NavigationItem(
-                        icon: Icons.grid_view_outlined,
-                        selectedIcon: Icons.grid_view_rounded,
-                        label: AppStrings.t('categories', language),
+                        icon: Icons.newspaper_outlined,
+                        selectedIcon: Icons.newspaper_rounded,
+                        label: AppStrings.t('news', language),
+                        color: const Color(0xFF1E88E5),
                         selected: currentIndex == 1,
                         onTap: () => onItemSelected(1),
                       ),
                     ),
-                    // NEW — Location tab
                     Expanded(
                       child: _NavigationItem(
-                        icon: Icons.location_on_outlined,
-                        selectedIcon: Icons.location_on_rounded,
-                        label: AppStrings.t('location', language),
+                        icon: Icons.view_module_outlined,
+                        selectedIcon: Icons.view_module_rounded,
+                        label: AppStrings.t('headlines', language),
+                        color: const Color(0xFFFB8C00),
                         selected: currentIndex == 2,
                         onTap: () => onItemSelected(2),
                       ),
                     ),
                     Expanded(
                       child: _NavigationItem(
-                        icon: Icons.search_outlined,
-                        selectedIcon: Icons.search_rounded,
-                        label: AppStrings.t('search', language),
-                        selected: currentIndex == 3, // was 2
-                        onTap: () => onItemSelected(3), // was 2
+                        icon: Icons.play_circle_outline_rounded,
+                        selectedIcon: Icons.play_circle_fill_rounded,
+                        label: AppStrings.t('reels', language),
+                        color: const Color(0xFF8E24AA),
+                        selected: currentIndex == 3,
+                        onTap: () => onItemSelected(3),
                       ),
                     ),
                     Expanded(
                       child: _NavigationItem(
-                        icon: Icons.bookmark_outline_rounded,
-                        selectedIcon: Icons.bookmark_rounded,
-                        label: AppStrings.t('saved', language),
-                        selected: currentIndex == 4, // was 3
-                        onTap: () => onItemSelected(4), // was 3
+                        icon: Icons.location_on_outlined,
+                        selectedIcon: Icons.location_on_rounded,
+                        label: AppStrings.t('location', language),
+                        color: const Color(0xFF43A047),
+                        selected: currentIndex == 4,
+                        onTap: () => onItemSelected(4),
                       ),
                     ),
                   ],
@@ -141,11 +150,13 @@ class _NavigationItem extends StatefulWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final Color color;
 
   const _NavigationItem({
     required this.icon,
     required this.selectedIcon,
     required this.label,
+    required this.color,
     required this.selected,
     required this.onTap,
   });
@@ -189,7 +200,7 @@ class _NavigationItemState extends State<_NavigationItem> {
         curve: Curves.easeOutCubic,
         margin: const EdgeInsets.symmetric(horizontal: 3),
         decoration: BoxDecoration(
-          color: widget.selected ? const Color(0x0F000000) : Colors.transparent,
+          color: widget.selected ? widget.color.withValues(alpha: 0.12) : Colors.transparent,
           borderRadius: BorderRadius.circular(19),
         ),
         child: Column(
@@ -204,7 +215,7 @@ class _NavigationItemState extends State<_NavigationItem> {
               child: Icon(
                 widget.selected ? widget.selectedIcon : widget.icon,
                 size: 22,
-                color: widget.selected ? Colors.black : Colors.black45,
+                color: widget.selected ? widget.color : Colors.black54,
               ),
             ),
             const SizedBox(height: 4),
@@ -214,11 +225,11 @@ class _NavigationItemState extends State<_NavigationItem> {
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeOut,
               style: GoogleFonts.inter(
-                fontSize: widget.selected ? 9.5 : 9,
-                fontWeight: widget.selected ? FontWeight.w700 : FontWeight.w500,
-                color: widget.selected ? Colors.black : Colors.black45,
+                fontSize: widget.selected ? 10.5 : 10,
+                fontWeight: widget.selected ? FontWeight.w800 : FontWeight.w600,
+                color: widget.selected ? widget.color : Colors.black54,
               ),
-              child: Text(widget.label),
+              child: Text(widget.label, maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
           ],
         ),

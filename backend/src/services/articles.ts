@@ -262,12 +262,14 @@ export async function listArticles(params: {
   districtId?: number
   mandalId?: number
   categoryId?: number
+  videoOnly?: boolean
   cursor?: string
   limit: number
 }) {
   const pos = decodeCursor<{ t: string; i: string }>(params.cursor)
   const where = and(
     live,
+    params.videoOnly ? sql`(${media.variants} ->> 'video') IS NOT NULL` : undefined,
     params.districtId ? eq(articles.districtId, params.districtId) : undefined,
     params.mandalId ? eq(articles.mandalId, params.mandalId) : undefined,
     params.categoryId ? eq(articles.categoryId, params.categoryId) : undefined,
